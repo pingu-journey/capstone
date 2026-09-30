@@ -1,0 +1,14 @@
+langgraph
+langchain-core
+langchain-openai
+pydantic>=2
+python-dotenv
+tavily-python
+pypdf
+chromadb
+sentence-transformers
+rank-bm25
+kiwipiepy
+fpdf2
+pyyaml
+pytest

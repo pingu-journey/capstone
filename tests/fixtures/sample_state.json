@@ -1,0 +1,68 @@
+{
+  "domain": "Energy",
+  "run_date": "2026-09-30",
+  "candidates": [],
+  "search_round": 1,
+  "evaluated": ["Amperon"],
+  "current_startup": {
+    "name": "Amperon",
+    "country": "US",
+    "stage": "Series B",
+    "funding": "Series B $20M",
+    "segment": "demand_forecasting",
+    "homepage": "https://www.amperon.co",
+    "priority": 5.0,
+    "evidence_urls": []
+  },
+  "tech_summary": {
+    "core_tech": "AI 기반 전력 수요 예측",
+    "products": ["수요 예측 플랫폼"],
+    "trl": 8,
+    "trl_rationale": "상용 고객 운영 근거가 있다고 가정한 테스트 데이터",
+    "performance": ["예측 정확도 개선"],
+    "strengths": ["소프트웨어 확장성"],
+    "weaknesses": ["공개 성능 수치 제한"],
+    "scalability": "클라우드 소프트웨어 중심",
+    "team": {
+      "founders": ["테스트 창업자 — CEO"],
+      "key_members": [],
+      "assessment": "도메인 경험 보유"
+    },
+    "insufficient": []
+  },
+  "market_analysis": {
+    "segment": "demand_forecasting",
+    "country": "US",
+    "market_size": [],
+    "growth": "성장 시장",
+    "demand_drivers": ["재생에너지 확대"],
+    "customers": ["유틸리티"],
+    "policy_risks": [],
+    "summary": "테스트 시장 분석",
+    "sources": []
+  },
+  "competitor_analysis": {
+    "competitors": [],
+    "differentiation": "테스트 차별성",
+    "moat": ["데이터"],
+    "traction": ["상용 고객"],
+    "competition_risks": []
+  },
+  "scores": {},
+  "total_score": 75.0,
+  "decision": "투자",
+  "evaluation_history": [
+    {
+      "startup": "Amperon",
+      "segment": "demand_forecasting",
+      "total_score": 75.0,
+      "decision": "투자",
+      "knockout": null,
+      "weakest_items": [],
+      "key_reason": "Phase 0 통합 테스트"
+    }
+  ],
+  "market_cache": {},
+  "references": [],
+  "log": []
+}

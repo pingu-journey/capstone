@@ -7,10 +7,15 @@ venv/
 # Env & secrets
 .env
 .env.*
+!.env.example
 
 # OS / Editor
 .DS_Store
 .vscode/
+
+# Generated data
+data/vectorstore/
+outputs/cache/
 
 # 환경 스캐폴딩
 pyproject.toml
