@@ -17,7 +17,7 @@
 
 - **공통 스키마(`schemas.py`, `state.py`)는 A만 수정한다.** 필드가 더 필요하면 A에게 요청하고, A가 반영 후 공지한다.
 - 프롬프트 파일은 각 에이전트 담당자가 소유한다 (`prompts/{에이전트}.md`).
-- 통합(merge)과 최종 E2E 실행은 **A**가 책임진다.
+- `main` 머지는 **4명 모두** 할 수 있다 (6장 협업 규칙). 최종 E2E 실행은 **A**가 책임진다.
 
 ---
 
@@ -165,7 +165,7 @@ Phase 0 (A 스키마·도구, D 레퍼런스 헬퍼)
 | ~10:10 | Phase 0 (스키마·도구·뼈대) | PDF 다운로드, 페이지 범위 확정 | 서브그래프 골격 | 레퍼런스 헬퍼, rubric.yaml |
 | 10:10~11:30 | discovery, select, stub 그래프 | ingest, embeddings | agentic_rag (웹 경로 우선) | investment_judge, test_scoring |
 | 11:30~13:00 | routing 테스트, app.py, README 초안 | advanced_rag, market_eval, 평가셋 | tech_summary, competitor, RAG 경로 연결 | report_writer, pdf_renderer |
-| **13:00 체크포인트** | **각자 브랜치를 `main`에 머지 (A가 순서대로 병합: D → B → C → A)** | | | |
+| **13:00 체크포인트** | **각자 브랜치를 PR로 `main`에 머지 (권장 순서: D → B → C → A)** | | | |
 | 13:00~14:00 | E2E 실행·오류 수정 총괄 | embedding_eval 실행, 수치 전달 | E2E에서 분석 품질 점검 | 경로 A·B PDF 품질·분량 점검 |
 | 14:00~14:30 | README 완성(수치·Contributors), clone 재현성 검증 | Hit@5·MRR 결과 README 반영 확인 | 발표용 차별점 정리 | 최종 보고서 PDF 확정 |
 | 14:30~15:00 | **제출:** GitHub 링크 + `RAG-Output_{캠퍼스}-{X반}_{이름…}.pdf` Slack 스레드 업로드 | | | |
@@ -176,7 +176,7 @@ Phase 0 (A 스키마·도구, D 레퍼런스 헬퍼)
 
 ## 6. 협업 규칙
 
-- **브랜치:** `feat/<담당>-<기능>`. `main`에는 A만 머지. 머지 전 `pytest` 통과 필수.
+- **브랜치:** `feat/<담당>-<기능>`. `main`에는 PR로만 반영하고, 4명 누구나 머지할 수 있다. 머지 전 `pytest` 통과 필수.
 - **소유 파일 외 수정 금지.** 다른 사람 파일에 버그가 있으면 해당 담당자에게 알린다.
 - **API 비용:** 개발 중에는 `--seed-only`와 검색 캐시를 기본으로 사용. 캐시 폴더(`outputs/cache/`)는 커밋하지 않는다.
 - **키 관리:** `.env`는 커밋 금지. 키는 팀 채널로 공유.
