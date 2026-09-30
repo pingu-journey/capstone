@@ -31,7 +31,7 @@ ITEM_IDS = {
 INSUFFICIENT_ITEM_IDS = {
     "tech_summary": {
         "TRL": "trl", "팀 정보": "team", "성능 지표": "tech_value",
-        "검증된 성능 수치": "tech_value", "확장 가능성": "scalability",
+        "확장성": "scalability",
     },
     "competitor_analysis": {
         "Traction": "traction", "진입장벽": "moat", "경쟁사 비교": "moat",
