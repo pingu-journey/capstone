@@ -167,8 +167,12 @@ def run(state) -> dict:
     scores = {}
     for item in rubric:
         draft = by_id[item["id"]]
-        if set(draft.source_ids) - available_sources:
-            raise ValueError(f"제공되지 않은 출처 ID가 채점 결과에 있습니다: item_id={draft.item_id}")
+        unknown = set(draft.source_ids) - available_sources
+        if unknown:
+            # LLM이 출처 ID를 잘못 옮기는 경우가 있어 그래프를 멈추지 않고 제거한다 (명세 6장 공통 규칙).
+            # 근거가 남지 않으면 아래에서 정보 부족(5점)으로 처리된다.
+            logger.warning("제공되지 않은 출처 ID 제거: item_id=%s count=%d", draft.item_id, len(unknown))
+            draft.source_ids = [source for source in draft.source_ids if source in available_sources]
         insufficient = draft.insufficient_info or not draft.source_ids or draft.item_id in forced
         rationale = draft.rationale
         if insufficient:

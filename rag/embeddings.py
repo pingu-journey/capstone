@@ -1,6 +1,7 @@
 """기술·시장 문서에서 공통으로 사용하는 임베딩 인터페이스"""
 
 import os
+import threading
 from functools import lru_cache
 
 import numpy as np
@@ -42,6 +43,9 @@ class Embedder:
         self.backend = backend
         self._model = None
         self._client = None
+        # 기술 요약·시장성 평가가 병렬 스레드에서 동시에 첫 인코딩을 실행하면
+        # torch 내부에서 프로세스가 죽으므로(segfault) 로드와 인코딩을 직렬화한다.
+        self._lock = threading.Lock()
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -51,21 +55,22 @@ class Embedder:
             raise ValueError("임베딩 입력은 비어 있지 않은 문자열이어야 합니다.")
 
         if self.backend == "local":
-            if self._model is None:
-                from sentence_transformers import SentenceTransformer
+            with self._lock:
+                if self._model is None:
+                    from sentence_transformers import SentenceTransformer
 
-                self._model = SentenceTransformer(
-                    MODEL_NAME,
-                    cache_folder=str(ROOT / "outputs" / "cache" / "models"),
+                    self._model = SentenceTransformer(
+                        MODEL_NAME,
+                        cache_folder=str(ROOT / "outputs" / "cache" / "models"),
+                    )
+
+                vectors = self._model.encode(
+                    texts,
+                    batch_size=8,
+                    normalize_embeddings=True,
+                    convert_to_numpy=True,
+                    show_progress_bar=False,
                 )
-
-            vectors = self._model.encode(
-                texts,
-                batch_size=8,
-                normalize_embeddings=True,
-                convert_to_numpy=True,
-                show_progress_bar=False,
-            )
             return _normalize(vectors, len(texts))
 
         if self._client is None:
