@@ -210,7 +210,7 @@ python -m rag.agentic_rag  # 기술 요약 Agentic RAG 서브그래프 구조를
 
 담당 구분은 [작업 분배표](docs/WORK_DIVISION.md)를 따릅니다.
 
-- **A**: 공통 스키마·State, LangGraph 그래프 및 라우팅, 스타트업 탐색, 실행 스크립트, 통합 및 README
-- **B**: RAG 문서 인제스트, 오픈소스 임베딩, Advanced RAG, 시장성 평가, 임베딩 성능 평가
-- **C**: Agentic RAG 서브그래프, 기술 요약, 경쟁사 비교, 기술 문서 평가셋
-- **D**: 투자 판단 루브릭 및 채점, 보고서 생성, PDF 조판, REFERENCE 처리
+- **제유진**: 공통 스키마·State, LangGraph 그래프 및 라우팅, 스타트업 탐색, 실행 스크립트, 통합 및 README
+- **윤서정**: RAG 문서 인제스트, 오픈소스 임베딩, Advanced RAG, 시장성 평가, 임베딩 성능 평가
+- **장주호**: Agentic RAG 서브그래프, 기술 요약, 경쟁사 비교, 기술 문서 평가셋
+- **이상윤**: 투자 판단 루브릭 및 채점, 보고서 생성, PDF 조판, REFERENCE 처리
