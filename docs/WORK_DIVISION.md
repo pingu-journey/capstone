@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | **A** | 공통 기반 · 그래프 · 탐색 | `config.py` `state.py` `schemas.py` `tools/llm.py` `tools/web_search.py` `graph/*` `agents/discovery.py` `agents/select_candidate.py` `app.py` `README.md` `tests/test_routing.py` | 1, 2, 3, 4, 6.1, 6.2, 9, 10 | 설계 구현 충실도, 코드 구조, 재현성, README |
 | **B** | RAG 인프라 · 시장성 평가 | `config/docs.yaml` `rag/ingest.py` `rag/embeddings.py` `rag/advanced_rag.py` `eval/embedding_eval.py` `data/eval/*` `agents/market_eval.py` | 5.1, 5.2, 5.4, 5.5, 6.4 | **RAG Pipeline(20)** |
-| **C** | Agentic RAG · 기술 요약 · 경쟁사 비교 | `rag/agentic_rag.py` `agents/tech_summary.py` `agents/competitor.py` `prompts/tech_summary.md` `prompts/competitor.md` | 5.3, 6.3, 6.5 | **RAG Pipeline(20)**, Agent 구현 |
+| **C** | Agentic RAG · 기술 요약 · 경쟁사 비교 | `rag/agentic_rag.py` `agents/tech_summary.py` `agents/competitor.py` `prompts/tech_summary.md` `prompts/competitor.md` `prompts/agentic_rag_generate.md` `prompts/agentic_rag_grade.md` `prompts/agentic_rag_rewrite.md` `tests/test_agentic_rag.py` `tests/test_competitor.py` `tests/test_tech_summary.py` | 5.3, 6.3, 6.5 | **RAG Pipeline(20)**, Agent 구현 |
 | **D** | 투자 판단 · 보고서 · REFERENCE | `config/rubric.yaml` `agents/investment_judge.py` `agents/report_writer.py` `report/*` `tools/references.py` `assets/fonts/*` `tests/test_scoring.py` `tests/test_references.py` | 7, 8, 6.6, 6.7 | **Output 보고서(20)**, Agent 구현 |
 
 - **공통 스키마(`schemas.py`, `state.py`)는 A만 수정한다.** 필드가 더 필요하면 A에게 요청하고, A가 반영 후 공지한다.
@@ -47,7 +47,7 @@
 | B | `rag.embeddings.get_embedder()` | `.embed_documents(list[str])`, `.embed_query(str)` | B, C |
 | B | `rag.advanced_rag.search(query: str, country: str, segment: str, k: int = 5)` | `list[dict]` — `{"text","doc_id","page","score"}` | B(시장성) |
 | B | `rag.ingest.get_collection(name: str)` | Chroma 컬렉션 (`"tech_docs"` / `"market_docs"`) | C |
-| C | `rag.agentic_rag.run(question: str, company: str, startup: str)` | `dict` — `{"answer": str, "sources": list[Reference], "path": "rag" \| "web" \| "rag+web", "rewrites": int}` | C(기술 요약) |
+| C | `rag.agentic_rag.run(question: str, company: str, startup: str, run_date: str \| None = None, web_queries: list[str] \| None = None, entity: dict \| None = None)` | `dict` — `{"answer": str, "sources": list[Reference], "path": "rag" \| "web" \| "rag+web", "rewrites": int, "log": list[str]}` | C(기술 요약) |
 | 각 담당 | `agents.<name>.run(state) -> dict` | 명세서 3.3 Writer 표에 적힌 키만 반환 | A(그래프) |
 
 **B가 벡터스토어를 만들기 전(Phase 1 초반)에 C가 막히지 않도록:** C는 `get_collection("tech_docs")`가 비어 있으면 곧바로 웹 검색 경로로 가는 분기를 먼저 구현하고, B의 인제스트가 끝나면 RAG 경로를 붙인다.

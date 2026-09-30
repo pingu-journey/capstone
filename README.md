@@ -192,16 +192,19 @@ flowchart TD
 | `run_log.json` | 평가 이력, 점수, 판정, 출처, 실행 로그 |
 | `discovery_round{n}.json` | 탐색 회차별 후보 발굴 결과 |
 | `graph.mmd` | 전체 그래프의 Mermaid 표현 |
-| `agentic_rag.mmd` | Agentic RAG 서브그래프의 Mermaid 표현 |
+| `agentic_rag.md` | Agentic RAG 서브그래프의 Mermaid 표현 |
 
 테스트와 임베딩 평가는 다음 명령으로 실행합니다.
 
 ```bash
 pytest
 python -m eval.embedding_eval
+python -m rag.agentic_rag  # 기술 요약 Agentic RAG 서브그래프 구조를 outputs/agentic_rag.md로 저장
 ```
 
 테스트는 점수 계산·70점 경계·필수 탈락 조건, 후보 반복·재탐색·종료 라우팅, REFERENCE 형식·중복 제거·기업별 필터를 검증합니다.
+
+참고: 웹 검색 결과에 이름이 같은 다른 분야 기업의 자료가 섞일 수 있다. 홈페이지 도메인·기업명·전력 산업 용어로 1차 필터링하고 프롬프트에서 동명 기업 자료 사용을 금지하지만, 전력 관련 용어를 함께 쓰는 동명 기업은 완전히 걸러지지 않을 수 있다.
 
 ## Contributors
 

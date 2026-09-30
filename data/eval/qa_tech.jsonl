@@ -8,3 +8,13 @@
 {"question":"배터리 상태 추정을 위한 머신러닝의 주요 입력 변수와 예측 대상은 무엇인가?","doc_id":"mdpi_bess_review_2026","page":22}
 {"question":"배터리 에너지관리에서 강화학습의 상태·행동과 보상함수에 포함되는 경쟁 목표는 무엇인가?","doc_id":"mdpi_bess_review_2026","page":34}
 {"question":"물리정보 하이브리드 AI는 순수 데이터 기반 배터리 모델의 어떤 한계를 보완하는가?","doc_id":"mdpi_bess_review_2026","page":41}
+{"question": "미국 전력망의 송전선로 길이와 변전소 수는 얼마인가?", "doc_id": "doe_ai_energy_2024", "page": 6}
+{"question": "현재 미국 전력 중 풍력·태양광·수력·원자력 같은 청정 발전원이 차지하는 비중은 약 몇 %인가?", "doc_id": "doe_ai_energy_2024", "page": 14}
+{"question": "전력망 연계(interconnection) 요청부터 상업 운전까지 걸리는 기간은 2022년 기준 몇 년으로 늘어났나?", "doc_id": "doe_ai_energy_2024", "page": 22}
+{"question": "재생에너지 발전량과 부하 예측을 위해 AI 기반 기상 모델이 목표로 하는 공간 해상도는 기존 기후 모델과 비교해 어느 정도인가?", "doc_id": "doe_ai_energy_2024", "page": 28}
+{"question": "가상발전소(VPP)는 피크 수요의 몇 %를 감당할 수 있을 것으로 전망되나?", "doc_id": "doe_ai_energy_2024", "page": 39}
+{"question": "2019년부터 2050년까지 전 세계 에너지 수요 중 전력이 차지하는 비중은 얼마나 증가할 것으로 예상되나?", "doc_id": "wef_ai_energy_2021", "page": 5}
+{"question": "BNEF 경제 전환 시나리오에서 2050년 발전량 중 태양광과 풍력이 차지하는 비중은 몇 %인가?", "doc_id": "wef_ai_energy_2021", "page": 6}
+{"question": "수요 측 에너지 효율이 1% 개선될 때마다 줄어드는 청정에너지 발전 투자액은 얼마인가?", "doc_id": "wef_ai_energy_2021", "page": 8}
+{"question": "AI는 태양광·풍력 발전량을 예측할 때 어떤 데이터를 학습하나?", "doc_id": "wef_ai_energy_2021", "page": 11}
+{"question": "AI와 컴퓨터 비전은 송배전망 설비 점검과 유지보수에 어떻게 활용되나?", "doc_id": "wef_ai_energy_2021", "page": 12}

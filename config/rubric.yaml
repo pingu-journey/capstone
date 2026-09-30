@@ -1,0 +1,24 @@
+threshold: 70
+items:
+  - {id: team, name: 창업팀 역량, weight: 25, knockout: true, basis: VC 투자기준, input: tech_summary.team,
+     high: "에너지·AI 창업/Exit 경험, 핵심 인력 완비", mid: "관련 경력은 있으나 공백 존재", low: "도메인 경험 부족"}
+  - {id: market_size, name: 시장 규모·성장성, weight: 12, basis: DOE ARL, input: market_analysis,
+     high: "대형 시장, 고성장(CAGR 20% 이상)", mid: "중간 규모 또는 성장 둔화", low: "틈새·정체 시장"}
+  - {id: market_demand, name: 시장 수요, weight: 10, basis: DOE ARL, input: market_analysis,
+     high: "유틸리티·발전사 등 명확한 수요 확인", mid: "수요는 있으나 구매 의사 불명확", low: "수요 근거 없음"}
+  - {id: traction, name: 사업모델·Traction, weight: 10, basis: VC 투자기준, input: competitor_analysis.traction,
+     high: "매출·상용 계약 확보", mid: "Pilot·MOU 단계", low: "실적 없음"}
+  - {id: moat, name: 경쟁우위, weight: 8, basis: DOE ARL, input: competitor_analysis,
+     high: "특허·데이터 등 진입장벽 보유", mid: "차별점은 있으나 모방 가능", low: "차별성 없음"}
+  - {id: trl, name: 기술 성숙도, weight: 7, basis: DOE TRL, input: tech_summary.trl,
+     high: "TRL 7 이상 (상용화·실증 완료)", mid: "TRL 4~6 (실증 중)", low: "TRL 3 이하 (PoC 이전)"}
+  - {id: tech_value, name: 기술 성능·고객가치, weight: 7, basis: DOE ARL, input: tech_summary.performance,
+     high: "비용·효율 개선이 정량으로 입증됨", mid: "정성적 개선", low: "기존 대비 이점 불명확"}
+  - {id: regulation, name: 규제·정책 위험, weight: 6, knockout: true, basis: DOE ARL, input: market_analysis.policy_risks,
+     high: "제도가 우호적, 인허가 불필요", mid: "제도 변화에 일부 의존", low: "제도 부재·중대 장벽"}
+  - {id: scalability, name: 공급·확장 가능성, weight: 5, basis: DOE ARL, input: tech_summary.scalability,
+     high: "소프트웨어 중심, 해외 확장 용이", mid: "하드웨어·현장 설치에 일부 의존", low: "인프라 제약이 큼"}
+  - {id: finance, name: 재무·투자 가능성, weight: 5, basis: VC 투자기준, input: current_startup.funding,
+     high: "자금 여력 충분, 후속 투자 유치", mid: "1년 내 추가 조달 필요", low: "자금 고갈 위험"}
+  - {id: deal_terms, name: 투자조건, weight: 5, basis: VC 투자기준, input: current_startup.funding,
+     high: "밸류에이션 적정, 지분 확보 가능", mid: "다소 고평가", low: "과도한 고평가"}
