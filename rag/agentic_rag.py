@@ -32,11 +32,23 @@ INDUSTRY_TERMS = (
     "virtual power plant", "demand response",
     "전력망", "전력시장", "발전량", "재생에너지", "가상발전소", "수요반응",
 )
+# 업계·경쟁사 탐색 쿼리용 넓은 목록 (특정 기업을 찾는 쿼리가 아니라 일반 단어도 허용)
+BROAD_TERMS = INDUSTRY_TERMS + (
+    "energy", "electricity", "power", "forecast", "forecasting",
+    "에너지", "전력", "유틸리티", "수요 예측",
+)
 INDUSTRY_ACRONYMS = ("VPP", "DER", "ESS")  # 대소문자 구분 ("der", "ISO 9001" 오탐 방지)
-# 영문은 앞뒤에 영문자가 없을 때만 매칭 (복수형 s 허용, "ESS를"처럼 한글 조사는 허용)
-_TERM_PATTERN = re.compile("|".join(
-    rf"(?<![a-z]){re.escape(t)}s?(?![a-z])" if t.isascii() else re.escape(t) for t in INDUSTRY_TERMS
-))
+
+
+def _term_pattern(terms: tuple[str, ...]) -> re.Pattern:
+    # 영문은 앞뒤에 영문자가 없을 때만 매칭 (복수형 s 허용, "ESS를"처럼 한글 조사는 허용)
+    return re.compile("|".join(
+        rf"(?<![a-z]){re.escape(t)}s?(?![a-z])" if t.isascii() else re.escape(t) for t in terms
+    ))
+
+
+_STRICT_PATTERN = _term_pattern(INDUSTRY_TERMS)
+_BROAD_PATTERN = _term_pattern(BROAD_TERMS)
 _ACRONYM_PATTERN = re.compile("|".join(rf"(?<![A-Za-z]){t}s?(?![A-Za-z])" for t in INDUSTRY_ACRONYMS))
 
 DEFAULT_WEB_QUERIES = [
@@ -80,8 +92,9 @@ def _domain(url: str) -> str:
     return urlparse(url).netloc.lower().removeprefix("www.")
 
 
-def has_industry_term(text: str) -> bool:
-    return bool(_TERM_PATTERN.search(text.lower()) or _ACRONYM_PATTERN.search(text))
+def has_industry_term(text: str, broad: bool = False) -> bool:
+    pattern = _BROAD_PATTERN if broad else _STRICT_PATTERN
+    return bool(pattern.search(text.lower()) or _ACRONYM_PATTERN.search(text))
 
 
 def filter_web_results(
@@ -89,9 +102,9 @@ def filter_web_results(
 ) -> tuple[list[dict], list[dict]]:
     """웹 결과 사전 필터. (유지, 제외)를 반환한다.
 
-    - entity + require_terms: 기술 질문 기업 쿼리. 도메인 일치 또는 (기업명 + 전용 용어 1개 이상)
+    - entity + require_terms: 기술 질문 기업 쿼리. 도메인 일치 또는 (기업명 + 엄격 목록 용어 1개 이상)
     - entity + not require_terms: 팀·경쟁사 기업 쿼리. 도메인 일치 또는 기업명 포함 (동명 기업은 프롬프트로 차단)
-    - entity 없음: 업계·경쟁사 탐색 쿼리. 전용 용어 1개 이상
+    - entity 없음: 업계·경쟁사 탐색 쿼리. 넓은 목록 용어 1개 이상
     """
     home = _domain(entity.get("homepage") or "") if entity else ""
     kept, dropped = [], []
@@ -103,7 +116,7 @@ def filter_web_results(
             named = entity["name"].lower() in text.lower()
             ok = same_site or (named and (not require_terms or has_industry_term(text)))
         else:
-            ok = has_industry_term(text)
+            ok = has_industry_term(text, broad=True)
         (kept if ok else dropped).append(result)
     return kept, dropped
 

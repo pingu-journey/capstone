@@ -185,6 +185,8 @@ NAMESAKE = {"title": "Amperon Technologies - Simplifying manufacturing excellenc
                        "The startup's technology reads the power signature of a machine. ISO 9001 certified."}
 INDUSTRY = {"title": "AI in grid operations", "url": "https://iea.example.org/x",
             "content": "AI improves renewables forecasting"}
+MYST_AI = {"title": "Myst AI Closes $6M Series A To Forecast Energy Demand", "url": "https://news.example.com/m",
+           "content": "Myst AI helps companies forecast energy consumption"}
 OFF_TOPIC = {"title": "Top 10 SaaS startups", "url": "https://blog.example.com/y", "content": "marketing tools"}
 
 
@@ -202,10 +204,11 @@ def test_company_filter_name_only():
     assert dropped == [OFF_TOPIC]
 
 
-def test_industry_filter_terms_only():
-    kept, dropped = ar.filter_web_results([INDUSTRY, SERIES_B, NAMESAKE, OFF_TOPIC])
-    assert kept == [INDUSTRY, SERIES_B]
-    assert dropped == [NAMESAKE, OFF_TOPIC]
+def test_industry_filter_broad_terms():
+    """탐색 쿼리: 넓은 목록. 기업을 특정하지 않으므로 제조업체 페이지("power signature")도 통과한다."""
+    kept, dropped = ar.filter_web_results([INDUSTRY, MYST_AI, NAMESAKE, OFF_TOPIC])
+    assert kept == [INDUSTRY, MYST_AI, NAMESAKE]
+    assert dropped == [OFF_TOPIC]
 
 
 def test_industry_term_matching():
@@ -215,3 +218,6 @@ def test_industry_term_matching():
     assert ar.has_industry_term("DER aggregation")
     assert ar.has_industry_term("ESS를 운영하는 스타트업")
     assert ar.has_industry_term("renewables integration")
+    assert not ar.has_industry_term("forecast energy consumption")  # 엄격 목록에는 없음
+    assert ar.has_industry_term("forecast energy consumption", broad=True)
+    assert not ar.has_industry_term("empower factories", broad=True)
