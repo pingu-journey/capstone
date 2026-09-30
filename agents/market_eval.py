@@ -136,6 +136,13 @@ def run(state: InvestState) -> dict:
             last_error = error
             analysis = None
 
+    if analysis is not None:
+        # LLM에는 doc_id를 보여 주고 검증한 뒤, 명세 3.1대로 Reference.id로 바꿔 저장한다.
+        # (보고서는 source_id를 references의 id와 대조한다)
+        ref_ids = dict(zip(doc_ids, (ref["id"] for ref in references)))
+        for figure in analysis.market_size:
+            figure.source_id = ref_ids.get(figure.source_id, figure.source_id)
+
     if analysis is None:
         analysis = _fallback(country, segment, references)
         status = f"구조화 출력 실패: {type(last_error).__name__}"

@@ -239,14 +239,17 @@ def test_run_rejects_duplicate_items(state, fake_llm):
         judge.run(state)
 
 
-# 제공되지 않은 출처를 사용한 채점 결과를 거부하고 ERROR 로그를 중복 기록하지 않는지 확인한다.
-def test_run_rejects_unknown_source(state, fake_llm, caplog):
+# 제공되지 않은 출처 ID는 그래프를 멈추지 않고 제거하며, 근거가 남지 않으면 5점 처리하는지 확인한다.
+def test_run_drops_unknown_source(state, fake_llm, caplog):
     result, _, _ = fake_llm
     result["items"][0]["source_ids"] = ["invented-source"]
-    with caplog.at_level(logging.ERROR, logger=judge.__name__):
-        with pytest.raises(ValueError, match="제공되지 않은 출처"):
-            judge.run(state)
-    assert not caplog.records
+    item_id = result["items"][0]["item_id"]
+    with caplog.at_level(logging.WARNING, logger=judge.__name__):
+        output = judge.run(state)
+    assert output["scores"][item_id]["insufficient_info"] is True
+    assert output["scores"][item_id]["score"] == 5
+    assert "invented-source" not in output["scores"][item_id]["rationale"]
+    assert [r.levelname for r in caplog.records if "출처 ID 제거" in r.getMessage()] == ["WARNING"]
 
 
 # 구조화 출력의 점수·근거·항목 수·추가 필드를 검증하는지 확인한다.
