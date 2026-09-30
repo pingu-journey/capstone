@@ -79,3 +79,9 @@ def test_run_returns_valid_competitor_analysis(monkeypatch):
     refs = [Reference(**r) for r in out["references"]]
     assert [r.url for r in refs] == [SEARCH_RESULTS["startups"]["url"], SEARCH_RESULTS["customers"]["url"]]
     assert all(r.startup == "Amperon" and r.used_by == "competitor" for r in refs)
+
+
+def test_verify_items_accepts_tech_citation_only_when_allowed():
+    items = ["자체 수요 데이터 [T]", "근거 없는 주장", "상용 계약 [2]"]
+    assert verify_items(items, 3, allow_tech=True) == (["자체 수요 데이터", "상용 계약"], {2})
+    assert verify_items(items, 3) == (["상용 계약"], {2})  # competition_risks 등은 [T] 불인정

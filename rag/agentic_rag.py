@@ -108,6 +108,10 @@ def filter_web_results(
     제목이 없거나 http(s)가 아닌 결과는 make_web_ref가 거부하므로 항상 제외한다.
     """
     home = _domain(entity.get("homepage") or "") if entity else ""
+    names = [entity["name"].lower()] if entity else []
+    stem = home.split(".")[0]
+    if stem.isalpha() and len(stem) >= 5:  # "해줌" ↔ haezoom.com (짧은 "60hz" 등은 오탐 방지로 제외)
+        names.append(stem)
     kept, dropped = [], []
     for result in results:
         if not (result.get("title") or "").strip() or urlparse(result.get("url") or "").scheme not in ("http", "https"):
@@ -117,7 +121,7 @@ def filter_web_results(
         if entity:
             domain = _domain(result["url"])
             same_site = bool(home) and (domain == home or domain.endswith("." + home))
-            named = entity["name"].lower() in text.lower()
+            named = any(name in text.lower() for name in names)
             ok = same_site or (named and (not require_terms or has_industry_term(text)))
         else:
             ok = has_industry_term(text, broad=True)
