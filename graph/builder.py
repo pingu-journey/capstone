@@ -19,6 +19,10 @@ _INTEGRATION_MODULES = (
 )
 
 
+def integration_ready() -> bool:
+    return all(importlib.util.find_spec(module) for module in _INTEGRATION_MODULES)
+
+
 def _stubs(decisions: Iterable[str] | None = None):
     fixture = json.loads(
         (ROOT / "tests" / "fixtures" / "sample_state.json").read_text(
@@ -80,9 +84,7 @@ def build_graph(
     stub: bool | None = None, stub_decisions: Iterable[str] | None = None
 ):
     if stub is None:
-        stub = not all(
-            importlib.util.find_spec(module) for module in _INTEGRATION_MODULES
-        )
+        stub = not integration_ready()
 
     if stub:
         tech, market, competitor, judge, report = _stubs(stub_decisions)

@@ -16,6 +16,8 @@ venv/
 # Generated data
 data/vectorstore/
 outputs/cache/
+outputs/*
+!outputs/.gitkeep
 
 # 환경 스캐폴딩
 pyproject.toml
