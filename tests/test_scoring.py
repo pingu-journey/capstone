@@ -202,7 +202,7 @@ def test_run_normalizes_insufficient_score(state, fake_llm, missing_source):
 
 @pytest.mark.parametrize("key, labels, forced", [
     ("tech_summary", ["TRL"], {"trl"}),
-    ("tech_summary", ["팀 정보", "성능 지표", "확장 가능성"], {"team", "tech_value", "scalability"}),
+    ("tech_summary", ["팀 정보", "성능 지표", "확장성"], {"team", "tech_value", "scalability"}),
     ("competitor_analysis", ["Traction"], {"traction"}),
     ("competitor_analysis", ["진입장벽", "경쟁사 비교"], {"moat"}),
     ("tech_summary", [], set()),
