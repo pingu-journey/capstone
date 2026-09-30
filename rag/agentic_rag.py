@@ -105,10 +105,14 @@ def filter_web_results(
     - entity + require_terms: 기술 질문 기업 쿼리. 도메인 일치 또는 (기업명 + 엄격 목록 용어 1개 이상)
     - entity + not require_terms: 팀·경쟁사 기업 쿼리. 도메인 일치 또는 기업명 포함 (동명 기업은 프롬프트로 차단)
     - entity 없음: 업계·경쟁사 탐색 쿼리. 넓은 목록 용어 1개 이상
+    제목이 없거나 http(s)가 아닌 결과는 make_web_ref가 거부하므로 항상 제외한다.
     """
     home = _domain(entity.get("homepage") or "") if entity else ""
     kept, dropped = [], []
     for result in results:
+        if not (result.get("title") or "").strip() or urlparse(result.get("url") or "").scheme not in ("http", "https"):
+            dropped.append(result)
+            continue
         text = f"{result.get('title') or ''} {result.get('content') or ''}"
         if entity:
             domain = _domain(result["url"])

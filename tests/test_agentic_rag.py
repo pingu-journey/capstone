@@ -211,6 +211,14 @@ def test_industry_filter_broad_terms():
     assert dropped == [OFF_TOPIC]
 
 
+def test_filter_drops_results_rejected_by_make_web_ref():
+    no_title = {**INDUSTRY, "title": ""}
+    ftp = {**INDUSTRY, "url": "ftp://iea.example.org/x"}
+    for entity in (None, ENTITY):
+        kept, dropped = ar.filter_web_results([no_title, ftp, HOMEPAGE], entity, require_terms=False)
+        assert no_title in dropped and ftp in dropped
+
+
 def test_industry_term_matching():
     assert not ar.has_industry_term("ISO 9001 certified")
     assert not ar.has_industry_term("der Energiemarkt in Deutschland")
