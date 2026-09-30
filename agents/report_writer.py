@@ -1,10 +1,10 @@
-"""보고서 본문 생성 단계. PDF 노드 연결은 조판 단계에서 추가한다."""
+"""본문 생성, PDF 분량 검증, PDF/Markdown 저장을 담당하는 보고서 노드."""
 
 import json
 import logging
 import re
 from collections import Counter
-from datetime import date
+from datetime import date, datetime
 
 from httpx import HTTPError
 from langchain_core.exceptions import OutputParserException
@@ -12,12 +12,14 @@ from openai import APIError
 from pydantic import ValidationError
 
 from agents.investment_judge import compute, load_rubric
-from config import INVEST_THRESHOLD, ROOT
+from config import INVEST_THRESHOLD, OUTPUT_DIR, ROOT
+from report.markdown_renderer import to_markdown
+from report.pdf_renderer import MAX_PAGES, ReportTooLongError, render_pdf, validate_assets
 from report.templates import (
     SUMMARY_BUDGET, TEMPLATES, Block, Chapter, ChapterDraft, HoldSummary,
     InvestmentSummary, ReportDocument, Table, blocks_length, chapter_budget,
 )
-from schemas import Candidate, CompetitorAnalysis, EvalRecord, ItemScore, MarketAnalysis, TechSummary
+from schemas import Candidate, CompetitorAnalysis, EvalRecord, ItemScore, MarketAnalysis, SEGMENT_KO, TechSummary
 from tools.llm import get_llm
 from tools.references import filter_references, group_references
 
@@ -169,7 +171,7 @@ def _competitor_table(analysis):
 
 def _market_table(markets):
     return Table(title="시장 수치", columns=["국가", "세그먼트", "지표", "값·단위", "기준 연도", "출처 ID"],
-                 rows=[[market["country"], market["segment"], figure["metric"], figure["value"],
+                 rows=[[market["country"], SEGMENT_KO[market["segment"]], figure["metric"], figure["value"],
                         figure["year"], figure["source_id"]]
                        for market in markets for figure in market["market_size"]])
 
@@ -186,7 +188,7 @@ def _score_table(scores, rubric, total):
 
 
 def _candidate_table(history):
-    return Table(title="후보별 평가 결과 (총점 0~100, 전체 보류)",
+    return Table(title=f"후보별 평가 결과 (0~100점 · 투자 기준 {INVEST_THRESHOLD}점 · 전체 보류)",
                  columns=["기업", "총점", "판정", "취약 항목", "필수 탈락", "보류 사유"],
                  rows=[[record["startup"], f"{record['total_score']:.1f}", record["decision"],
                         ", ".join(record["weakest_items"]), record["knockout"] or "없음", record["key_reason"]]
@@ -267,3 +269,40 @@ def build_report(state, *, reduction: int = 0) -> ReportDocument:
                             references=group_references(refs))
     logger.info("보고서 본문 생성 완료: route=%s chapters=%d", route, len(chapters))
     return report
+
+
+def run(state) -> dict:
+    """그래프 계약대로 PDF 경로와 새 로그만 반환한다. 입력 State는 보존한다."""
+    validate_assets()
+    stem = "report_" + datetime.now().strftime("%Y%m%d_%H%M")
+    pdf_path, md_path = OUTPUT_DIR / f"{stem}.pdf", OUTPUT_DIR / f"{stem}.md"
+    if pdf_path.exists() or md_path.exists():
+        raise FileExistsError("같은 분에 생성된 보고서가 있습니다. 기존 파일을 보존하며 다음 분에 다시 실행하세요.")
+    for reduction in range(3):
+        report = build_report(state, reduction=reduction)
+        rendered = render_pdf(report)
+        if rendered.page_count <= MAX_PAGES:
+            break
+        if reduction < 2:
+            logger.warning("PDF 분량 초과, 본문 예산 20%% 축소: pages=%d reduction=%d",
+                           rendered.page_count, reduction + 1)
+    else:
+        logger.warning("PDF 분량 초과, 글자 크기 축소: pages=%d", rendered.page_count)
+        rendered = render_pdf(report, compact=True)
+        if rendered.page_count > MAX_PAGES:
+            raise ReportTooLongError("본문 2회 축소·글자 크기 축소 후에도 REFERENCE 포함 5페이지를 초과합니다.")
+    markdown = to_markdown(report).encode("utf-8")
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    created = []
+    try:
+        for path, content in ((pdf_path, rendered.content), (md_path, markdown)):
+            # 경쟁 실행이 먼저 만든 산출물도 덮어쓰지 않는다.
+            with path.open("xb") as stream:
+                created.append(path)
+                stream.write(content)
+    except OSError:
+        for path in created:
+            path.unlink(missing_ok=True)
+        raise
+    logger.info("보고서 저장 완료: report_path=%s pages=%d", pdf_path, rendered.page_count)
+    return {"report_path": str(pdf_path), "log": [f"[report] {report.decision}: {pdf_path.name}, {rendered.page_count}페이지"]}

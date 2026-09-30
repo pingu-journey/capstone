@@ -358,3 +358,21 @@ def test_invalid_route_or_reduction(state, llm, issue):
     with pytest.raises(ValueError):
         writer.build_report(state, reduction=3 if issue == "reduction" else 0)
     assert not llm[1]
+
+
+# 모의 LLM 본문 생성부터 실제 PDF·Markdown 저장까지 보고서 노드 전체를 실행한다.
+def test_run_generates_real_artifacts(state, llm, monkeypatch, tmp_path):
+    from pathlib import Path
+    from pypdf import PdfReader
+
+    monkeypatch.setattr(writer, "OUTPUT_DIR", tmp_path)
+    before = deepcopy(state)
+    result = writer.run(state)
+    pdf = Path(result["report_path"])
+    assert set(result) == {"report_path", "log"}
+    assert state == before and len(result["log"]) == 1
+    reader = PdfReader(pdf)
+    text = "\n".join(page.extract_text() for page in reader.pages)
+    assert 1 <= len(reader.pages) <= 5
+    assert "SUMMARY" in text and "REFERENCE" in text and "80.0점" in text
+    assert "80\\.0점" in pdf.with_suffix(".md").read_text(encoding="utf-8")
