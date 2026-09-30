@@ -39,7 +39,7 @@ Energy(AI 기반 전력 수요 예측·발전/배터리 운영·전력망 관리
 | Embedding | `BAAI/bge-m3` — 오픈소스, 로컬 또는 Hugging Face Inference API |
 | Hybrid Search | BM25 + 밀집 검색 + RRF, 한국어 토큰화에 kiwipiepy 사용 |
 | Reranker | `BAAI/bge-reranker-v2-m3` |
-| PDF Renderer | fpdf2 + NanumGothic |
+| PDF Renderer | fpdf2 + SUIT |
 | Test | pytest |
 
 임베딩은 동일 청크·질의로 `BAAI/bge-m3`, `Qwen/Qwen3-Embedding-0.6B`, `intfloat/multilingual-e5-large`를 비교합니다. 평가 지표는 **Hit Rate@5**와 **MRR**이며, 평가 스크립트의 측정 결과는 `outputs/embedding_eval.md`에 저장됩니다.
