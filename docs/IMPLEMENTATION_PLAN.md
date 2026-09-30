@@ -285,7 +285,7 @@ class InvestState(TypedDict, total=False):
 
 | 필드 | Writer | Reader |
 |---|---|---|
-| `domain`, `run_date` | app | 탐색, 보고서 |
+| `domain`, `run_date` | app | 탐색, 기술 요약, 경쟁사 비교, 보고서 |
 | `log` | 모든 노드 | app |
 | `candidates` | 탐색(채움), 후보 선택(꺼냄) | 후보 선택, 라우터 |
 | `search_round` | 탐색 | 라우터 |
@@ -606,7 +606,7 @@ def run(state):
 
 ### 6.3 기술 요약 — `agents/tech_summary.py` (RAG O · Agentic RAG)
 
-**입력:** `current_startup` **출력:** `tech_summary`, `references`, `log`
+**입력:** `current_startup`, `run_date` **출력:** `tech_summary`, `references`, `log`
 
 1. 5.3의 Agentic RAG 서브그래프를 질문 2개로 호출.
 2. 팀 정보: `"{name} founder CEO CTO"`, `"{name} 창업자 대표 이력"` 웹 검색 → 창업자·핵심 인력·이력 추출.
@@ -624,11 +624,21 @@ def run(state):
 
 ### 6.5 경쟁사 비교 — `agents/competitor.py` (RAG X, 웹서치)
 
-**입력:** `current_startup`, `tech_summary`, `market_analysis` **출력:** `competitor_analysis`, `references`, `log`
+**입력:** `current_startup`, `tech_summary`, `market_analysis`, `run_date` **출력:** `competitor_analysis`, `references`, `log`
 
 1. 검색 쿼리: `"{name} competitors"`, `"{segment_en} startups {country}"`, `"{segment_ko} 기업"`, `"{name} 고객 OR 계약 OR 파트너십 OR customers"`.
 2. 같은 세그먼트·지역의 경쟁사 3~5곳 선정 (상장 대기업 포함 가능, 다른 후보 기업도 경쟁사가 될 수 있음).
 3. LLM(`prompts/competitor.md`)이 `tech_summary`와 `market_analysis`를 함께 보고, 동일 기준(제공 기술, 투자 단계/상장 여부, 대상 대비 차이)으로 비교표·차별성·진입장벽·대상 기업의 Traction(고객·계약·Pilot)을 작성.
+
+### 6.5.1 기술 요약·경쟁사 비교 출력 규칙 (투자 판단·보고서 참고)
+
+- `insufficient`에는 공개 정보가 부족한 항목의 **한글 이름**을 코드가 빈 필드를 보고 기록한다. 루브릭 id 대응표는 `agents.tech_summary.INSUFFICIENT_TO_RUBRIC`, `agents.competitor.INSUFFICIENT_TO_RUBRIC`이다.
+  - 기술 요약: 팀 정보, TRL, 성능 지표, 확장성, 핵심 기술, 제품, 강점·약점
+  - 경쟁사 비교: Traction, 진입장벽, 경쟁사 비교
+- `competitor_analysis`에는 `insufficient` 키가 추가로 들어 있다 (`CompetitorAnalysis(**dict)`로 읽으면 무시된다).
+- 기술 요약 생성에 실패하면 `trl=1`, `trl_rationale="공개 정보 부족"`으로 채우고 `insufficient`에 "TRL"을 기록한다. 이때 투자 판단은 trl 항목을 `insufficient_info=True`, 5점으로 처리한다.
+- 근거가 없는 리스트 항목은 제거되므로 `products`, `traction`, `moat` 등은 빈 리스트일 수 있고, 경쟁사 `status`는 "공개 정보 부족"일 수 있다. 보고서는 빈 리스트를 "공개 정보 부족"으로 표기한다.
+- Reference `used_by`: 기술 요약 `"tech_summary"`, 경쟁사 비교 `"competitor"`.
 
 ### 6.6 투자 판단 — `agents/investment_judge.py` (RAG X, LLM 채점 + 코드 판정)
 
