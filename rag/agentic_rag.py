@@ -4,13 +4,13 @@ import sys
 from datetime import date
 from functools import lru_cache
 from operator import add
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
-from config import OUTPUT_DIR, ROOT
-from tools.llm import get_llm
+from config import OUTPUT_DIR, RAG_MAX_REWRITES, ROOT
+from tools.llm import get_judge_llm, get_llm
 from tools.references import make_doc_ref, make_web_ref
 from tools.web_search import search
 
@@ -19,6 +19,9 @@ PROMPT_DIR = ROOT / "prompts"
 USED_BY = "tech_summary"
 LOG_PREFIX = "[tech_summary/agentic_rag]"
 INSUFFICIENT = "공개 정보 부족"
+TOP_K = 5
+MIN_RELEVANT = 2
+MAX_CONTEXT_DOCS = 5
 
 DEFAULT_WEB_QUERIES = [
     "{company} technology",
@@ -41,8 +44,14 @@ class RagState(TypedDict, total=False):
     startup: str
     run_date: str
     web_queries: list[str] | None
+    use_rag: bool
+    graded_ids: list[str]  # 관련·무관 상관없이 판정을 마친 청크 ID
     path: str
     log: Annotated[list[str], add]
+
+
+class GradeOutput(BaseModel):
+    verdicts: list[Literal["yes", "no"]]
 
 
 class GenerateOutput(BaseModel):
@@ -50,14 +59,99 @@ class GenerateOutput(BaseModel):
     used_sources: list[int] = []
 
 
+def _prompt(name: str, **values) -> str:
+    return (PROMPT_DIR / f"{name}.md").read_text(encoding="utf-8").format(**values)
+
+
+def _get_tech_collection():
+    from rag.ingest import get_collection
+
+    return get_collection("tech_docs")
+
+
+@lru_cache(maxsize=1)
+def _get_embedder():
+    from rag.embeddings import get_embedder
+
+    return get_embedder()
+
+
 def _tech_docs_available() -> bool:
     try:
-        from rag.embeddings import get_embedder  # noqa: F401
-        from rag.ingest import get_collection
-
-        return get_collection("tech_docs").count() > 0
+        _get_embedder()
+        return _get_tech_collection().count() > 0
     except Exception:
         return False
+
+
+def retrieve(state: RagState) -> dict:
+    embedding = _get_embedder().embed_query(state["query"])
+    res = _get_tech_collection().query(query_embeddings=[embedding], n_results=TOP_K)
+    docs = [
+        {"id": cid, "text": text, "doc_id": meta["doc_id"], "page": meta["page"], "distance": dist}
+        for cid, text, meta, dist in zip(
+            res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0]
+        )
+    ]
+    return {
+        "docs": docs,
+        "log": [f"{LOG_PREFIX} retrieve query='{state['query']}' → {len(docs)}건"],
+    }
+
+
+def _grade_docs(question: str, docs: list[dict]) -> list[str] | None:
+    chunks = "\n\n".join(f"[{i}] {d['text']}" for i, d in enumerate(docs, start=1))
+    prompt = _prompt("agentic_rag_grade", question=question, chunks=chunks)
+    llm = get_judge_llm().with_structured_output(GradeOutput)
+    for _ in range(2):  # 검증 실패 시 1회 재시도
+        try:
+            verdicts = llm.invoke(prompt).verdicts
+            if len(verdicts) == len(docs):
+                return verdicts
+        except Exception:
+            continue
+    return None
+
+
+def grade(state: RagState) -> dict:
+    graded = set(state.get("graded_ids") or [])
+    new_docs = [d for d in state.get("docs") or [] if d["id"] not in graded]
+    relevant = list(state.get("relevant_docs") or [])
+    log = []
+    if new_docs:
+        verdicts = _grade_docs(state["question"], new_docs)
+        if verdicts is None:
+            verdicts = ["no"] * len(new_docs)
+            log.append(f"{LOG_PREFIX} grade failed → treated as irrelevant")
+        relevant += [d for d, v in zip(new_docs, verdicts) if v == "yes"]
+    log.append(f"{LOG_PREFIX} grade 신규 {len(new_docs)}건 판정 → 관련 누적 {len(relevant)}건")
+    return {
+        "relevant_docs": relevant,
+        "graded_ids": sorted(graded | {d["id"] for d in new_docs}),
+        "log": log,
+    }
+
+
+def route_after_grade(state: RagState) -> str:
+    if len(state.get("relevant_docs") or []) >= MIN_RELEVANT:
+        return "generate"
+    if state.get("rewrite_count", 0) < RAG_MAX_REWRITES:
+        return "rewrite"
+    return "web_search"
+
+
+def rewrite(state: RagState) -> dict:
+    prompt = _prompt("agentic_rag_rewrite", question=state["question"], query=state["query"])
+    try:
+        query = get_llm().invoke(prompt).content.strip() or state["query"]
+    except Exception:
+        query = state["query"]
+    count = state.get("rewrite_count", 0) + 1
+    return {
+        "query": query,
+        "rewrite_count": count,
+        "log": [f"{LOG_PREFIX} rewrite #{count} → '{query}'"],
+    }
 
 
 def web_search(state: RagState) -> dict:
@@ -93,7 +187,9 @@ def _to_reference(kind: str, item: dict, state: RagState) -> dict:
 
 
 def generate(state: RagState) -> dict:
-    relevant_docs = state.get("relevant_docs") or []
+    # 검색 점수 높은 순(Chroma 거리 오름차순) 최대 5개
+    relevant_docs = sorted(state.get("relevant_docs") or [], key=lambda d: d["distance"])
+    relevant_docs = relevant_docs[:MAX_CONTEXT_DOCS]
     web_results = state.get("web_results") or []
     evidence = [("doc", d) for d in relevant_docs] + [("web", r) for r in web_results]
     path = "rag+web" if relevant_docs and web_results else ("rag" if relevant_docs else "web")
@@ -101,8 +197,8 @@ def generate(state: RagState) -> dict:
     if not evidence:
         answer, used = INSUFFICIENT, []
     else:
-        template = (PROMPT_DIR / "agentic_rag_generate.md").read_text(encoding="utf-8")
-        prompt = template.format(
+        prompt = _prompt(
+            "agentic_rag_generate",
             company=state["company"],
             question=state["question"],
             evidence=_format_evidence(evidence),
@@ -142,9 +238,23 @@ def generate(state: RagState) -> dict:
 @lru_cache(maxsize=1)
 def build_graph():
     g = StateGraph(RagState)
+    g.add_node("retrieve", retrieve)
+    g.add_node("grade", grade)
+    g.add_node("rewrite", rewrite)
     g.add_node("web_search", web_search)
     g.add_node("generate", generate)
-    g.add_edge(START, "web_search")
+    g.add_conditional_edges(
+        START,
+        lambda s: "retrieve" if s.get("use_rag") else "web_search",
+        {"retrieve": "retrieve", "web_search": "web_search"},
+    )
+    g.add_edge("retrieve", "grade")
+    g.add_conditional_edges(
+        "grade",
+        route_after_grade,
+        {"generate": "generate", "rewrite": "rewrite", "web_search": "web_search"},
+    )
+    g.add_edge("rewrite", "retrieve")
     g.add_edge("web_search", "generate")
     g.add_edge("generate", END)
     return g.compile()
@@ -157,15 +267,19 @@ def run(
     run_date: str | None = None,
     web_queries: list[str] | None = None,
 ) -> dict:
-    log = [] if _tech_docs_available() else [f"{LOG_PREFIX} tech_docs unavailable → web only"]
+    use_rag = _tech_docs_available()
+    log = [] if use_rag else [f"{LOG_PREFIX} tech_docs unavailable → web only"]
     final = build_graph().invoke({
         "question": question,
         "company": company,
         "startup": startup,
         "run_date": run_date or date.today().isoformat(),
         "web_queries": web_queries,
+        "use_rag": use_rag,
         "query": question,
         "rewrite_count": 0,
+        "relevant_docs": [],
+        "graded_ids": [],
         "log": log,
     })
     return {
