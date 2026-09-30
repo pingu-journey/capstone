@@ -1,0 +1,30 @@
+{"question":"IEA는 AI 기반 발전소 운영·유지보수가 2035년까지 연간 얼마의 비용을 절감할 수 있다고 전망하는가?","doc_id":"iea_energy_ai_2025","page":109}
+{"question":"전 세계 네트워크 연결 기기 수는 2024년부터 2030년 사이 어떻게 변할 전망인가?","doc_id":"iea_energy_ai_2025","page":113}
+{"question":"ExxonMobil의 AI 수요예측 모델은 예측 오차를 몇 퍼센트 줄였는가?","doc_id":"iea_energy_ai_2025","page":117}
+{"question":"전력 수요와 재생에너지 공급 예측 향상이 전력시스템 운영에 주는 이점은 무엇인가?","doc_id":"iea_energy_ai_2025","page":123}
+{"question":"DeepMind의 풍력 예측은 풍력에너지의 재무적 가치를 최대 몇 퍼센트 높였는가?","doc_id":"iea_energy_ai_2025","page":124}
+{"question":"2035년 세계 재생에너지 출력제한을 1%포인트 줄이면 석탄과 천연가스 수요를 얼마나 줄일 수 있는가?","doc_id":"iea_energy_ai_2025","page":124}
+{"question":"AI는 발전소 운영·유지보수 비용을 몇 퍼센트 줄이고 연간 얼마를 절감할 잠재력이 있는가?","doc_id":"iea_energy_ai_2025","page":128}
+{"question":"IEA 조사에서 AI를 실시간 계통 운영과 계통 개발 계획에 사용하는 사업자 비율은 각각 얼마인가?","doc_id":"iea_energy_ai_2025","page":130}
+{"question":"자산 감시·관리에 영상인식 AI를 사용하는 전력사업자 비율은 약 얼마인가?","doc_id":"iea_energy_ai_2025","page":131}
+{"question":"동적 송전용량 DLR 시스템이 추가로 활성화할 수 있는 세계 송전용량과 신규 선로 대체 비용은 얼마인가?","doc_id":"iea_energy_ai_2025","page":134}
+{"question":"미국이 2030년까지 확보해야 할 VPP 용량과 피크부하 대비 비중은 얼마인가?","doc_id":"doe_vpp_liftoff_2025","page":6}
+{"question":"미국 피크 전력수요는 2024년 약 800GW에서 2030년 얼마로 늘어날 전망인가?","doc_id":"doe_vpp_liftoff_2025","page":8}
+{"question":"ConnectedSolutions 프로그램은 착수 기간과 피크저감 용량 측면에서 어떤 성과를 보였는가?","doc_id":"doe_vpp_liftoff_2025","page":9}
+{"question":"FERC Order 2222는 언제 승인됐으며 어떤 자원의 도매시장 참여를 요구하는가?","doc_id":"doe_vpp_liftoff_2025","page":10}
+{"question":"NERC가 제시한 2024년과 2030년 미국 여름 피크수요는 각각 몇 GW인가?","doc_id":"doe_vpp_liftoff_2025","page":12}
+{"question":"2028년까지 미국에서 추가될 것으로 예상되는 분산에너지자원 DER 용량은 얼마인가?","doc_id":"doe_vpp_liftoff_2025","page":13}
+{"question":"VPP 피킹 용량은 전통적인 피커 발전소보다 비용이 얼마나 저렴한가?","doc_id":"doe_vpp_liftoff_2025","page":15}
+{"question":"기본 VPP의 구축 기간과 미국의 2019~2028년 신규 DER 설치 전망은 얼마인가?","doc_id":"doe_vpp_liftoff_2025","page":16}
+{"question":"2035년 예시 전력시스템에서 VPP 포트폴리오는 발전비용과 가구당 연간 비용을 얼마나 줄이는가?","doc_id":"doe_vpp_liftoff_2025","page":17}
+{"question":"FERC Order 2222가 DER 집합에 허용하도록 요구한 도매시장 서비스는 무엇인가?","doc_id":"doe_vpp_liftoff_2025","page":46}
+{"question":"2026년까지 AI용 데이터센터 수와 재생에너지 발전량 증가율은 어떻게 전망되는가?","doc_id":"posri_ai_power_demand_2024","page":2}
+{"question":"2026년까지 세계 전력망 총수요와 AI용 전력망 수요는 각각 어떻게 증가하는가?","doc_id":"posri_ai_power_demand_2024","page":2}
+{"question":"2026년 AI용 전력망 투자가 세계 전력망 투자의 몇 퍼센트를 차지할 전망인가?","doc_id":"posri_ai_power_demand_2024","page":2}
+{"question":"2026년 전 세계 전력 총수요 증가분과 그중 AI용 전력수요의 규모·비중은 얼마인가?","doc_id":"posri_ai_power_demand_2024","page":3}
+{"question":"구글 검색 1회와 ChatGPT 사용의 전력 소비량은 각각 얼마로 제시되는가?","doc_id":"posri_ai_power_demand_2024","page":3}
+{"question":"2023년 대비 2026년 세계 재생에너지 투자 규모는 얼마에서 얼마로 늘어날 전망인가?","doc_id":"posri_ai_power_demand_2024","page":4}
+{"question":"2023~2026년 재생에너지 총발전량과 AI용 발전량의 연간 증가율은 각각 얼마인가?","doc_id":"posri_ai_power_demand_2024","page":4}
+{"question":"2030년 세계 전력망 총수요 전망과 2026년까지의 연평균 증가율은 얼마인가?","doc_id":"posri_ai_power_demand_2024","page":5}
+{"question":"AI용 전력망 길이는 2023년부터 2026년까지 얼마에서 얼마로 늘어날 전망인가?","doc_id":"posri_ai_power_demand_2024","page":6}
+{"question":"2026년 세계 전력망 투자 규모와 아시아·북미·유럽의 지역별 투자 전망은 얼마인가?","doc_id":"posri_ai_power_demand_2024","page":6}
