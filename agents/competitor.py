@@ -101,7 +101,7 @@ def run(state: dict) -> dict:
             if result["url"] and result["url"] not in seen:
                 seen.add(result["url"])
                 fresh.append(result)
-        kept, removed = filter_web_results(fresh, query_entity)
+        kept, removed = filter_web_results(fresh, query_entity, require_terms=False)
         results += kept
         dropped += removed
 
@@ -110,7 +110,7 @@ def run(state: dict) -> dict:
     prompt = PROMPT_PATH.read_text(encoding="utf-8").format(
         company_info=(
             f"{name} / 국가 {country} / 단계 {startup['stage']} / 세그먼트 {segment_ko} / "
-            f"투자 {startup['funding']}"
+            f"홈페이지 {startup.get('homepage') or INSUFFICIENT} / 투자 {startup['funding']}"
         ),
         tech_summary=json.dumps(
             {k: tech.get(k) for k in ("core_tech", "products", "trl", "performance", "strengths", "weaknesses")},

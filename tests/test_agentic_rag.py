@@ -10,7 +10,7 @@ import rag.agentic_rag as ar
 
 
 WEB_RESULTS = [
-    {"title": "Amperon news", "url": "https://example.com/a", "content": "전력 수요 예측 웹 근거", "published_date": None},
+    {"title": "Amperon news", "url": "https://example.com/a", "content": "전력망 수요 예측 웹 근거", "published_date": None},
 ]
 
 
@@ -170,24 +170,48 @@ def test_tech_docs_unavailable_goes_web_only(patch_rag, monkeypatch):
     assert result["log"][0].endswith("tech_docs unavailable → web only")
 
 
+
 ENTITY = {"name": "Amperon", "segment": "demand_forecasting", "homepage": "https://www.amperon.co"}
 HOMEPAGE = {"title": "About us", "url": "https://www.amperon.co/about-us", "content": "Our team"}
-NEWS = {"title": "Amperon raises Series B", "url": "https://news.example.com/b",
-        "content": "Amperon, an AI electricity demand forecasting startup, ..."}
+SERIES_B = {"title": "Amperon Raises $20 Million Series B to Accelerate Energy Analytics",
+            "url": "https://news.example.com/b", "content": "Amperon helps grid operators ..."}
+CB_INSIGHTS = {"title": "Top Amperon Alternatives, Competitors", "url": "https://www.cbinsights.com/x",
+               "content": "Amperon's top competitors include ..."}
+INTERVIEW = {"title": "Amperon Co-Founder and CEO Sean Kelly - Watt It Takes", "url": "https://podcasts.example.com/y",
+             "content": "Sean Kelly talks about founding Amperon"}
 NAMESAKE = {"title": "Amperon Technologies - Simplifying manufacturing excellence",
-            "url": "https://amperontech.example.com", "content": "Amperon Technologies is on a mission to empower all the world's factories"}
+            "url": "https://tn.linkedin.com/company/amperon-technologies",
+            "content": "Amperon Technologies is on a mission to empower all the world's factories. "
+                       "The startup's technology reads the power signature of a machine. ISO 9001 certified."}
 INDUSTRY = {"title": "AI in grid operations", "url": "https://iea.example.org/x",
-            "content": "AI improves grid forecasting"}
+            "content": "AI improves renewables forecasting"}
 OFF_TOPIC = {"title": "Top 10 SaaS startups", "url": "https://blog.example.com/y", "content": "marketing tools"}
 
 
-def test_filter_with_entity_keeps_homepage_and_news_drops_namesake():
-    kept, dropped = ar.filter_web_results([HOMEPAGE, NEWS, NAMESAKE, INDUSTRY], ENTITY)
-    assert kept == [HOMEPAGE, NEWS]  # 도메인 일치 또는 기업명+에너지 키워드
+def test_company_filter_with_terms():
+    """기술 질문 기업 쿼리: 도메인 일치 또는 (기업명 + 전용 용어)."""
+    kept, dropped = ar.filter_web_results([HOMEPAGE, SERIES_B, NAMESAKE, INDUSTRY], ENTITY)
+    assert kept == [HOMEPAGE, SERIES_B]
     assert dropped == [NAMESAKE, INDUSTRY]  # 동명 제조업체, 기업명 없는 업계 자료
 
 
-def test_filter_without_entity_uses_energy_keywords_only():
-    kept, dropped = ar.filter_web_results([INDUSTRY, NEWS, NAMESAKE, OFF_TOPIC])
-    assert kept == [INDUSTRY, NEWS]
+def test_company_filter_name_only():
+    """팀·경쟁사 기업 쿼리: 도메인 일치 또는 기업명 포함 (동명 기업은 프롬프트로 차단)."""
+    kept, dropped = ar.filter_web_results([CB_INSIGHTS, INTERVIEW, OFF_TOPIC], ENTITY, require_terms=False)
+    assert kept == [CB_INSIGHTS, INTERVIEW]
+    assert dropped == [OFF_TOPIC]
+
+
+def test_industry_filter_terms_only():
+    kept, dropped = ar.filter_web_results([INDUSTRY, SERIES_B, NAMESAKE, OFF_TOPIC])
+    assert kept == [INDUSTRY, SERIES_B]
     assert dropped == [NAMESAKE, OFF_TOPIC]
+
+
+def test_industry_term_matching():
+    assert not ar.has_industry_term("ISO 9001 certified")
+    assert not ar.has_industry_term("der Energiemarkt in Deutschland")
+    assert not ar.has_industry_term("Windows software to empower teams")
+    assert ar.has_industry_term("DER aggregation")
+    assert ar.has_industry_term("ESS를 운영하는 스타트업")
+    assert ar.has_industry_term("renewables integration")

@@ -48,7 +48,7 @@ def _team_search(company: str, entity: dict) -> tuple[list[dict], list[str]]:
             if result["url"] and result["url"] not in seen:
                 seen.add(result["url"])
                 results.append(result)
-    kept, dropped = agentic_rag.filter_web_results(results, entity)
+    kept, dropped = agentic_rag.filter_web_results(results, entity, require_terms=False)
     return kept, agentic_rag.filter_log("[tech_summary] 팀 검색", dropped)
 
 

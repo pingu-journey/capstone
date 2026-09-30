@@ -25,14 +25,19 @@ TOP_K = 5
 MIN_RELEVANT = 2
 MAX_CONTEXT_DOCS = 5
 
-ENERGY_KEYWORDS = (
-    "energy", "electricity", "power", "grid", "utility", "utilities", "battery", "batteries", "storage",
-    "forecast", "solar", "wind", "전력", "에너지", "발전", "배터리", "전력망",
+# 전력 산업 전용 용어 (power·energy 같은 일반 단어는 동명 기업 오탐이 많아 제외)
+INDUSTRY_TERMS = (
+    "grid", "utility", "utilities", "load forecasting", "demand forecasting", "renewable",
+    "solar", "wind", "energy storage", "battery storage", "electricity market", "power market",
+    "virtual power plant", "demand response",
+    "전력망", "전력시장", "발전량", "재생에너지", "가상발전소", "수요반응",
 )
-# 영문은 단어 시작에서만 매칭 ("empower"의 power 오탐 방지), 한글은 부분 일치
-ENERGY_PATTERN = re.compile(
-    "|".join(rf"\b{k}" if k.isascii() else k for k in ENERGY_KEYWORDS)
-)
+INDUSTRY_ACRONYMS = ("VPP", "DER", "ESS")  # 대소문자 구분 ("der", "ISO 9001" 오탐 방지)
+# 영문은 앞뒤에 영문자가 없을 때만 매칭 (복수형 s 허용, "ESS를"처럼 한글 조사는 허용)
+_TERM_PATTERN = re.compile("|".join(
+    rf"(?<![a-z]){re.escape(t)}s?(?![a-z])" if t.isascii() else re.escape(t) for t in INDUSTRY_TERMS
+))
+_ACRONYM_PATTERN = re.compile("|".join(rf"(?<![A-Za-z]){t}s?(?![A-Za-z])" for t in INDUSTRY_ACRONYMS))
 
 DEFAULT_WEB_QUERIES = [
     "{company} technology",
@@ -75,24 +80,30 @@ def _domain(url: str) -> str:
     return urlparse(url).netloc.lower().removeprefix("www.")
 
 
-def filter_web_results(results: list[dict], entity: dict | None = None) -> tuple[list[dict], list[dict]]:
+def has_industry_term(text: str) -> bool:
+    return bool(_TERM_PATTERN.search(text.lower()) or _ACRONYM_PATTERN.search(text))
+
+
+def filter_web_results(
+    results: list[dict], entity: dict | None = None, require_terms: bool = True
+) -> tuple[list[dict], list[dict]]:
     """웹 결과 사전 필터. (유지, 제외)를 반환한다.
 
-    entity({"name", "segment", "homepage"})가 있으면 기업 중심 필터:
-    홈페이지 도메인 일치 또는 (기업명 포함 + 에너지 키워드).
-    None이면 업계·경쟁사 탐색용으로 에너지 키워드 조건만 적용한다.
+    - entity + require_terms: 기술 질문 기업 쿼리. 도메인 일치 또는 (기업명 + 전용 용어 1개 이상)
+    - entity + not require_terms: 팀·경쟁사 기업 쿼리. 도메인 일치 또는 기업명 포함 (동명 기업은 프롬프트로 차단)
+    - entity 없음: 업계·경쟁사 탐색 쿼리. 전용 용어 1개 이상
     """
     home = _domain(entity.get("homepage") or "") if entity else ""
     kept, dropped = [], []
     for result in results:
-        text = f"{result.get('title') or ''} {result.get('content') or ''}".lower()
-        has_energy = bool(ENERGY_PATTERN.search(text))
+        text = f"{result.get('title') or ''} {result.get('content') or ''}"
         if entity:
             domain = _domain(result["url"])
             same_site = bool(home) and (domain == home or domain.endswith("." + home))
-            ok = same_site or (entity["name"].lower() in text and has_energy)
+            named = entity["name"].lower() in text.lower()
+            ok = same_site or (named and (not require_terms or has_industry_term(text)))
         else:
-            ok = has_energy
+            ok = has_industry_term(text)
         (kept if ok else dropped).append(result)
     return kept, dropped
 
