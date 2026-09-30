@@ -38,7 +38,7 @@ def to_markdown(report: ReportDocument) -> str:
         entries = report.references.get(ref_type, [])
         if entries:
             lines.extend([f"### {title}", ""])
-            lines.extend(f"- [{_escape(ref['id'])}] {_escape(format_reference(ref))}" for ref in entries)
+            lines.extend(f"- {_escape(format_reference(ref))}" for ref in entries)
             lines.append("")
     if not any(report.references.values()):
         lines.extend(["기록된 활용 출처 없음.", ""])

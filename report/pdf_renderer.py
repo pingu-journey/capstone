@@ -61,7 +61,7 @@ class _ReportPDF(FPDF):
         self.alias_nb_pages()
 
     def header(self):
-        self.set_fill_color(*BACKGROUND)
+        self.set_fill_color(*WHITE)
         self.rect(0, 0, self.w, self.h, style="F")
         self.set_xy(MARGIN, MARGIN)
 
@@ -267,7 +267,7 @@ def render_pdf(report: ReportDocument, *, compact: bool = False) -> RenderedPDF:
         if entries:
             pdf.heading(title)
             for ref in entries:
-                pdf.paragraph(f"[{ref['id']}] {format_reference(ref)}", size=pdf.table_size, keep=True)
+                pdf.paragraph(format_reference(ref), size=pdf.table_size, keep=True)
     if not any(report.references.values()):
         pdf.paragraph("기록된 활용 출처 없음.")
     result = RenderedPDF(bytes(pdf.output()), pdf.page_no(), summary_bottom)
