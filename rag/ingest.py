@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import re
+import threading
 from collections import Counter
 from functools import lru_cache
 
@@ -41,22 +42,33 @@ def parse_pages(value: str) -> list[int]:
     return result
 
 
+# LangGraph가 기술 요약·시장성 평가를 병렬 스레드로 실행해 첫 호출이 겹치면
+# PersistentClient가 동시에 생성되며 충돌하므로 생성·조회를 직렬화한다.
+_CLIENT_LOCK = threading.RLock()
+
+
 @lru_cache(maxsize=1)
-def _client():
+def _create_client():
     import chromadb
 
     return chromadb.PersistentClient(path=str(DATA_DIR / "vectorstore"))
+
+
+def _client():
+    with _CLIENT_LOCK:
+        return _create_client()
 
 
 def get_collection(name: str):
     """기술·시장 컬렉션을 반환한다. 인제스트 전이면 빈 컬렉션을 만든다."""
     if name not in COLLECTIONS.values():
         raise ValueError(f"지원하지 않는 컬렉션: {name}")
-    return _client().get_or_create_collection(
-        name=name,
-        metadata={"hnsw:space": "cosine"},
-        embedding_function=None,
-    )
+    with _CLIENT_LOCK:
+        return _client().get_or_create_collection(
+            name=name,
+            metadata={"hnsw:space": "cosine"},
+            embedding_function=None,
+        )
 
 
 def load_registry():
