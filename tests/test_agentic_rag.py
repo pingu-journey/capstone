@@ -10,7 +10,7 @@ import rag.agentic_rag as ar
 
 
 WEB_RESULTS = [
-    {"title": "Amperon news", "url": "https://example.com/a", "content": "웹 근거", "published_date": None},
+    {"title": "Amperon news", "url": "https://example.com/a", "content": "전력 수요 예측 웹 근거", "published_date": None},
 ]
 
 
@@ -168,3 +168,26 @@ def test_tech_docs_unavailable_goes_web_only(patch_rag, monkeypatch):
     result = run_rag()
     assert result["path"] == "web"
     assert result["log"][0].endswith("tech_docs unavailable → web only")
+
+
+ENTITY = {"name": "Amperon", "segment": "demand_forecasting", "homepage": "https://www.amperon.co"}
+HOMEPAGE = {"title": "About us", "url": "https://www.amperon.co/about-us", "content": "Our team"}
+NEWS = {"title": "Amperon raises Series B", "url": "https://news.example.com/b",
+        "content": "Amperon, an AI electricity demand forecasting startup, ..."}
+NAMESAKE = {"title": "Amperon Technologies - Simplifying manufacturing excellence",
+            "url": "https://amperontech.example.com", "content": "Amperon Technologies is on a mission to empower all the world's factories"}
+INDUSTRY = {"title": "AI in grid operations", "url": "https://iea.example.org/x",
+            "content": "AI improves grid forecasting"}
+OFF_TOPIC = {"title": "Top 10 SaaS startups", "url": "https://blog.example.com/y", "content": "marketing tools"}
+
+
+def test_filter_with_entity_keeps_homepage_and_news_drops_namesake():
+    kept, dropped = ar.filter_web_results([HOMEPAGE, NEWS, NAMESAKE, INDUSTRY], ENTITY)
+    assert kept == [HOMEPAGE, NEWS]  # 도메인 일치 또는 기업명+에너지 키워드
+    assert dropped == [NAMESAKE, INDUSTRY]  # 동명 제조업체, 기업명 없는 업계 자료
+
+
+def test_filter_without_entity_uses_energy_keywords_only():
+    kept, dropped = ar.filter_web_results([INDUSTRY, NEWS, NAMESAKE, OFF_TOPIC])
+    assert kept == [INDUSTRY, NEWS]
+    assert dropped == [NAMESAKE, OFF_TOPIC]

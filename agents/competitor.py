@@ -3,6 +3,7 @@ import json
 import re
 
 from agents.tech_summary import SEGMENT_EN, company_label
+from rag.agentic_rag import filter_log, filter_web_results
 from config import ROOT
 from schemas import SEGMENT_KO, Competitor, CompetitorAnalysis
 from tools.llm import get_llm
@@ -87,17 +88,22 @@ def run(state: dict) -> dict:
     company = company_label(startup)
     segment_ko = SEGMENT_KO[startup["segment"]]
 
-    seen, results = set(), []
-    for query in [
-        f"{company} competitors",
-        f"{SEGMENT_EN[startup['segment']]} startups {country}",
-        f"{segment_ko} 기업",
-        f"{company} 고객 OR 계약 OR 파트너십 OR customers",
+    entity = {"name": name, "segment": startup["segment"], "homepage": startup.get("homepage")}
+    seen, results, dropped = set(), [], []
+    for query, query_entity in [  # 기업 중심 쿼리만 entity 필터, 탐색 쿼리는 키워드 필터
+        (f"{company} competitors", entity),
+        (f"{SEGMENT_EN[startup['segment']]} startups {country}", None),
+        (f"{segment_ko} 기업", None),
+        (f"{company} 고객 OR 계약 OR 파트너십 OR customers", entity),
     ]:
+        fresh = []
         for result in search(query):
             if result["url"] and result["url"] not in seen:
                 seen.add(result["url"])
-                results.append(result)
+                fresh.append(result)
+        kept, removed = filter_web_results(fresh, query_entity)
+        results += kept
+        dropped += removed
 
     tech = state.get("tech_summary") or {}
     market = state.get("market_analysis") or {}
@@ -157,7 +163,7 @@ def run(state: dict) -> dict:
     return {
         "competitor_analysis": analysis.model_dump(),
         "references": references,
-        "log": [
+        "log": filter_log("[competitor]", dropped) + [
             f"[competitor] {name} {status}, 부족 {analysis.insufficient or '없음'}, 근거 {len(references)}건"
         ],
     }

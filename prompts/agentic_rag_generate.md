@@ -9,6 +9,7 @@
 
 [대상 기업]
 {company}
+{entity_info}
 
 [질문]
 {question}

@@ -5,11 +5,13 @@ from datetime import date
 from functools import lru_cache
 from operator import add
 from typing import Annotated, Literal, TypedDict
+from urllib.parse import urlparse
 
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from config import OUTPUT_DIR, RAG_MAX_REWRITES, ROOT
+from schemas import SEGMENT_KO
 from tools.llm import get_judge_llm, get_llm
 from tools.references import make_doc_ref, make_web_ref
 from tools.web_search import search
@@ -22,6 +24,15 @@ INSUFFICIENT = "공개 정보 부족"
 TOP_K = 5
 MIN_RELEVANT = 2
 MAX_CONTEXT_DOCS = 5
+
+ENERGY_KEYWORDS = (
+    "energy", "electricity", "power", "grid", "utility", "utilities", "battery", "batteries", "storage",
+    "forecast", "solar", "wind", "전력", "에너지", "발전", "배터리", "전력망",
+)
+# 영문은 단어 시작에서만 매칭 ("empower"의 power 오탐 방지), 한글은 부분 일치
+ENERGY_PATTERN = re.compile(
+    "|".join(rf"\b{k}" if k.isascii() else k for k in ENERGY_KEYWORDS)
+)
 
 DEFAULT_WEB_QUERIES = [
     "{company} technology",
@@ -44,6 +55,7 @@ class RagState(TypedDict, total=False):
     startup: str
     run_date: str
     web_queries: list[str] | None
+    entity: dict | None
     use_rag: bool
     graded_ids: list[str]  # 관련·무관 상관없이 판정을 마친 청크 ID
     path: str
@@ -57,6 +69,39 @@ class GradeOutput(BaseModel):
 class GenerateOutput(BaseModel):
     answer: str
     used_sources: list[int] = []
+
+
+def _domain(url: str) -> str:
+    return urlparse(url).netloc.lower().removeprefix("www.")
+
+
+def filter_web_results(results: list[dict], entity: dict | None = None) -> tuple[list[dict], list[dict]]:
+    """웹 결과 사전 필터. (유지, 제외)를 반환한다.
+
+    entity({"name", "segment", "homepage"})가 있으면 기업 중심 필터:
+    홈페이지 도메인 일치 또는 (기업명 포함 + 에너지 키워드).
+    None이면 업계·경쟁사 탐색용으로 에너지 키워드 조건만 적용한다.
+    """
+    home = _domain(entity.get("homepage") or "") if entity else ""
+    kept, dropped = [], []
+    for result in results:
+        text = f"{result.get('title') or ''} {result.get('content') or ''}".lower()
+        has_energy = bool(ENERGY_PATTERN.search(text))
+        if entity:
+            domain = _domain(result["url"])
+            same_site = bool(home) and (domain == home or domain.endswith("." + home))
+            ok = same_site or (entity["name"].lower() in text and has_energy)
+        else:
+            ok = has_energy
+        (kept if ok else dropped).append(result)
+    return kept, dropped
+
+
+def filter_log(prefix: str, dropped: list[dict]) -> list[str]:
+    if not dropped:
+        return []
+    titles = ", ".join((r.get("title") or r["url"])[:40] for r in dropped)
+    return [f"{prefix} web 필터 제외 {len(dropped)}건: {titles}"]
 
 
 def _prompt(name: str, **values) -> str:
@@ -164,9 +209,11 @@ def web_search(state: RagState) -> dict:
             if result["url"] and result["url"] not in seen:
                 seen.add(result["url"])
                 results.append(result)
+    kept, dropped = filter_web_results(results, state.get("entity"))
     return {
-        "web_results": results,
-        "log": [f"{LOG_PREFIX} web_search 쿼리 {len(queries)}개 → 결과 {len(results)}건"],
+        "web_results": kept,
+        "log": [f"{LOG_PREFIX} web_search 쿼리 {len(queries)}개 → 결과 {len(kept)}건"]
+        + filter_log(LOG_PREFIX, dropped),
     }
 
 
@@ -197,9 +244,17 @@ def generate(state: RagState) -> dict:
     if not evidence:
         answer, used = INSUFFICIENT, []
     else:
+        entity = state.get("entity")
+        entity_info = (
+            f"대상 기업: {entity['name']}, 분야: {SEGMENT_KO[entity['segment']]}, "
+            f"홈페이지: {entity.get('homepage') or INSUFFICIENT}. "
+            "이름이 같아도 다른 분야의 회사 자료는 사용하지 마라."
+            if entity else ""
+        )
         prompt = _prompt(
             "agentic_rag_generate",
             company=state["company"],
+            entity_info=entity_info,
             question=state["question"],
             evidence=_format_evidence(evidence),
         )
@@ -266,6 +321,7 @@ def run(
     startup: str,
     run_date: str | None = None,
     web_queries: list[str] | None = None,
+    entity: dict | None = None,
 ) -> dict:
     use_rag = _tech_docs_available()
     log = [] if use_rag else [f"{LOG_PREFIX} tech_docs unavailable → web only"]
@@ -275,6 +331,7 @@ def run(
         "startup": startup,
         "run_date": run_date or date.today().isoformat(),
         "web_queries": web_queries,
+        "entity": entity,
         "use_rag": use_rag,
         "query": question,
         "rewrite_count": 0,

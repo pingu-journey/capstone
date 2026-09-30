@@ -41,14 +41,15 @@ def company_label(startup: dict) -> str:
     return f"{startup['name']} ({domain})" if domain else startup["name"]
 
 
-def _team_search(company: str) -> list[dict]:
+def _team_search(company: str, entity: dict) -> tuple[list[dict], list[str]]:
     seen, results = set(), []
     for query in [f"{company} founder CEO CTO", f"{company} 창업자 대표 이력"]:
         for result in search(query):
             if result["url"] and result["url"] not in seen:
                 seen.add(result["url"])
                 results.append(result)
-    return results
+    kept, dropped = agentic_rag.filter_web_results(results, entity)
+    return kept, agentic_rag.filter_log("[tech_summary] 팀 검색", dropped)
 
 
 def _fallback() -> TechSummaryDraft:
@@ -87,9 +88,11 @@ def run(state: dict) -> dict:
     name, run_date = startup["name"], state["run_date"]
     company = company_label(startup)
     segment_ko = SEGMENT_KO[startup["segment"]]
+    entity = {"name": name, "segment": startup["segment"], "homepage": startup.get("homepage")}
 
     tech = agentic_rag.run(
-        f"{company}의 핵심 기술, 제품, 성능 지표는 무엇인가?", company, name, run_date
+        f"{company}의 핵심 기술, 제품, 성능 지표는 무엇인가?", company, name, run_date,
+        entity=entity,
     )
     industry_question = f"{segment_ko} 분야 AI 기술의 업계 수준과 상용화 단계(TRL 판단 근거)는?"
     industry = agentic_rag.run(
@@ -99,7 +102,7 @@ def run(state: dict) -> dict:
             f"{SEGMENT_EN[startup['segment']]} AI technology readiness commercialization",
         ],
     )
-    team_results = _team_search(company)
+    team_results, team_log = _team_search(company, entity)
 
     prompt = PROMPT_PATH.read_text(encoding="utf-8").format(
         company_info=(
@@ -144,7 +147,7 @@ def run(state: dict) -> dict:
     return {
         "tech_summary": summary.model_dump(),
         "references": references,
-        "log": tech["log"] + industry["log"] + [
+        "log": tech["log"] + industry["log"] + team_log + [
             f"[tech_summary] {name} {status}, 부족 {insufficient or '없음'}, 근거 {len(references)}건"
         ],
     }
