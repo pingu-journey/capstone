@@ -234,12 +234,15 @@ def build_report(state, *, reduction: int = 0) -> ReportDocument:
             raise ReportValidationError("필수 분석 한계가 장별 글자 예산을 초과합니다.")
         payload = {"route": route, "chapter": number, "title": template.title,
                    "guidance": template.guidance, "char_budget": budget - reserve,
+                   "target_chars": int((budget - reserve) * 0.7),
                    "inputs": context, "source_ids": sorted(source_ids)}
         # 잘못된 구조·예산·출처는 한 번만 재생성한다. 원문 응답은 재전송하지 않는다.
         for attempt in range(2):
             try:
                 draft = _invoke(ChapterDraft, "report_chapter.md", payload)
-                if blocks_length(draft.blocks) > budget - reserve:
+                actual_chars = blocks_length(draft.blocks)
+                if actual_chars > budget - reserve:
+                    payload["previous_char_count"] = actual_chars
                     raise ReportValidationError("본문이 장별 글자 예산을 초과합니다.")
                 _citations("\n".join(block.subtitle + "\n" + block.text for block in draft.blocks), source_ids)
                 break
@@ -248,6 +251,7 @@ def build_report(state, *, reduction: int = 0) -> ReportDocument:
                     raise
                 logger.warning("보고서 본문 검증 실패, 재생성: chapter=%d", number)
                 payload["retry_reason"] = str(exc)
+                payload["target_chars"] = int(payload["target_chars"] * 0.7)
         blocks = draft.blocks + ([limitation_block] if number == 4 else [])
         chapters.append(Chapter(number=number, title=template.title, char_budget=budget,
                                 blocks=blocks, tables=tables.get(number, [])))

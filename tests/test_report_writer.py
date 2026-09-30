@@ -376,3 +376,22 @@ def test_run_generates_real_artifacts(state, llm, monkeypatch, tmp_path):
     assert 1 <= len(reader.pages) <= 5
     assert "SUMMARY" in text and "REFERENCE" in text and "80.0점" in text
     assert "80\\.0점" in pdf.with_suffix(".md").read_text(encoding="utf-8")
+
+
+# 실제 글자 수 초과 시 재생성 입력에 초과 길이와 더 작은 작성 목표를 전달한다.
+def test_chapter_retry_includes_measured_length(state, llm, monkeypatch):
+    original = writer._invoke
+    attempts = []
+
+    def invoke(model, prompt, payload):
+        if model is ChapterDraft and payload["chapter"] == 1:
+            attempts.append(deepcopy(payload))
+            if len(attempts) == 1:
+                return ChapterDraft(blocks=[{"subtitle": "초과", "text": "가" * 901}])
+        return original(model, prompt, payload)
+
+    monkeypatch.setattr(writer, "_invoke", invoke)
+    writer.build_report(state)
+    assert len(attempts) == 2
+    assert attempts[1]["previous_char_count"] == 904
+    assert attempts[1]["target_chars"] < attempts[0]["target_chars"] < attempts[0]["char_budget"]
