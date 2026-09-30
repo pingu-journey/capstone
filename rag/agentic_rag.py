@@ -378,7 +378,7 @@ def run(
 
 if __name__ == "__main__":
     OUTPUT_DIR.mkdir(exist_ok=True)
-    mmd_path = OUTPUT_DIR / "agentic_rag.mmd"
+    mmd_path = OUTPUT_DIR / "agentic_rag.md"
     mmd_path.write_text(build_graph().get_graph().draw_mermaid(), encoding="utf-8")
     print(f"서브그래프: {mmd_path}")
     if len(sys.argv) >= 3:  # python -m rag.agentic_rag "질문" 기업명

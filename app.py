@@ -51,7 +51,14 @@ def main() -> None:
     )
     run_log = {
         key: final.get(key)
-        for key in ("evaluation_history", "scores", "decision", "references", "log")
+        for key in (
+            "run_date",
+            "evaluation_history",
+            "scores",
+            "decision",
+            "references",
+            "log",
+        )
     }
     (OUTPUT_DIR / "run_log.json").write_text(
         json.dumps(run_log, ensure_ascii=False, indent=2), encoding="utf-8"
