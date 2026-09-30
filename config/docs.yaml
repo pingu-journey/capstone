@@ -1,0 +1,91 @@
+# pages: 현재 저장된 발췌본의 물리 페이지 번호 (1부터 시작)
+# original_pages: 발췌본 각 페이지에 대응하는 원본 PDF 물리 페이지
+# 총 사용 페이지: 195쪽
+
+tech:
+  - id: doe_ai_energy_2024
+    file: data/docs/tech/DOE_AI_for_Energy_2024.pdf
+    url: https://www.energy.gov/sites/default/files/2024-04/AI%20EO%20Report%20Section%205.2g%28i%29_043024.pdf
+    ref_type: report
+    author_org: U.S. Department of Energy
+    date: "2024"
+    title: "AI for Energy: Opportunities for a Modern Grid and Clean Energy Economy"
+    pages: "1-59"
+    original_pages: "1-59"
+    lang: en
+
+  - id: wef_ai_energy_2021
+    file: data/docs/tech/WEF_Harnessing_AI_Energy_Transition_2021.pdf
+    url: https://www3.weforum.org/docs/WEF_Harnessing_AI_to_accelerate_the_Energy_Transition_2021.pdf
+    ref_type: report
+    author_org: World Economic Forum
+    date: "2021"
+    title: "Harnessing Artificial Intelligence to Accelerate the Energy Transition"
+    pages: "1-25"
+    original_pages: "1-25"
+    lang: en
+
+  - id: mdpi_bess_review_2026
+    file: data/docs/tech/MDPI_Batteries_AI_BESS_Review_2026.pdf
+    url: https://www.mdpi.com/2313-0105/12/9/353
+    ref_type: paper
+    author_org: "Benbouhenni, H., Bizon, N."
+    date: "2026"
+    title: "Artificial Intelligence-Enabled Battery Energy Storage Systems for Renewable Energy: A Comprehensive Review of Technologies, Applications, Challenges, and Future Directions"
+    venue: Batteries
+    volume_issue: "12(9)"
+    article_pages: "353"
+    pages: "1-49"
+    original_pages: "20-68"
+    lang: en
+
+market:
+  - id: iea_energy_ai_2025
+    file: data/docs/market/IEA_Energy_and_AI_2025.pdf
+    url: https://www.iea.org/reports/energy-and-ai
+    ref_type: report
+    author_org: IEA
+    date: "2025"
+    title: "Energy and AI"
+    pages: "1-26"
+    original_pages: "109-134"
+    country: GLOBAL
+    segments:
+      - demand_forecasting
+      - generation_vpp
+      - ess_operation
+      - grid_management
+    lang: en
+
+  - id: doe_vpp_liftoff_2025
+    file: data/docs/market/DOE_VPP_Liftoff_2025_Update.pdf
+    url: https://liftoff.energy.gov/wp-content/uploads/2025/01/LIFTOFF_DOE_VirtualPowerPlants2025Update.pdf
+    ref_type: report
+    author_org: U.S. Department of Energy
+    date: "2025"
+    title: "Pathways to Commercial Liftoff: Virtual Power Plants 2025 Update"
+    pages: "1-28"
+    original_pages: "6-20,39-51"
+    country: US
+    segments:
+      - demand_forecasting
+      - generation_vpp
+      - ess_operation
+      - grid_management
+    lang: en
+
+  - id: posri_ai_power_demand_2024
+    file: data/docs/market/POSRI_AI_Power_Demand_2024.pdf
+    url: https://www.posri.re.kr/download.do?fid=4662&pid=8671
+    ref_type: report
+    author_org: 포스코경영연구원
+    date: "2024"
+    title: "AI발 전력수요 증가에 따른 에너지 및 소재 시장 동향 점검"
+    pages: "1-8"
+    original_pages: "1-6,8-9"
+    country: KR
+    segments:
+      - demand_forecasting
+      - generation_vpp
+      - grid_management
+    lang: ko
