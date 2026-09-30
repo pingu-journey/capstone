@@ -229,3 +229,16 @@ def test_industry_term_matching():
     assert not ar.has_industry_term("forecast energy consumption")  # 엄격 목록에는 없음
     assert ar.has_industry_term("forecast energy consumption", broad=True)
     assert not ar.has_industry_term("empower factories", broad=True)
+
+
+def test_filter_accepts_homepage_domain_stem_as_name():
+    """한글 이름 기업(해줌)의 영문 기사도 도메인 핵심어(haezoom)로 인정한다."""
+    entity = {"name": "해줌", "segment": "generation_vpp", "homepage": "https://www.haezoom.com"}
+    news = {"title": "South Korean PV company Haezoom signs contract", "url": "https://news.example.com/h",
+            "content": "Haezoom will operate a virtual power plant"}
+    kept, _ = ar.filter_web_results([news], entity, require_terms=False)
+    assert kept == [news]
+    short = {"name": "식스티헤르츠", "segment": "generation_vpp", "homepage": "https://60hz.io"}
+    grid = {"title": "Grid frequency 60Hz explained", "url": "https://blog.example.com/f", "content": "60hz grid"}
+    kept, _ = ar.filter_web_results([grid], short, require_terms=False)
+    assert kept == []  # 짧은/숫자 도메인(60hz)은 별칭으로 쓰지 않는다

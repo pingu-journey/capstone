@@ -17,6 +17,10 @@ PROMPT_PATH = ROOT / "prompts" / "competitor.md"
 MIN_COMPETITORS = 3
 CITATION = re.compile(r"\[(\d+)\]")
 VERIFIED_FIELDS = ("traction", "moat", "competition_risks")
+# 진입장벽·Traction은 웹 검색보다 기술 요약(특허·데이터·제품·고객)에 근거가 있는 경우가 많아
+# 기술 요약 근거 표시 [T]도 인정한다 (기술 요약은 자체 근거 검증을 거친 입력이다).
+TECH_CITATION = "[T]"
+TECH_CITABLE_FIELDS = ("traction", "moat")
 
 # insufficient 항목명 → rubric.yaml 평가 항목 id (D가 '분석의 한계'에 사용)
 INSUFFICIENT_TO_RUBRIC = {
@@ -46,12 +50,13 @@ def split_citations(item: str, n_sources: int) -> tuple[str, list[int]]:
     return text, nums
 
 
-def verify_items(items: list[str], n_sources: int) -> tuple[list[str], set[int]]:
-    """유효한 근거 번호가 있는 항목만 [n]을 지워 남기고, 사용한 번호를 함께 반환."""
+def verify_items(items: list[str], n_sources: int, allow_tech: bool = False) -> tuple[list[str], set[int]]:
+    """유효한 근거 번호(allow_tech면 [T]도)가 있는 항목만 표시를 지워 남기고, 사용한 번호를 함께 반환."""
     kept, used = [], set()
     for item in items:
-        text, nums = split_citations(item, n_sources)
-        if nums and text and text != INSUFFICIENT:
+        tech = allow_tech and TECH_CITATION in item
+        text, nums = split_citations(item.replace(TECH_CITATION, ""), n_sources)
+        if (nums or tech) and text and text != INSUFFICIENT:
             kept.append(text)
             used.update(nums)
     return kept, used
@@ -147,7 +152,9 @@ def run(state: dict) -> dict:
         competitors.append(Competitor(**c.model_dump(exclude={"status", "status_source"}), status=status))
     verified = {}
     for field in VERIFIED_FIELDS:
-        verified[field], nums = verify_items(getattr(draft, field), n_sources)
+        verified[field], nums = verify_items(
+            getattr(draft, field), n_sources, allow_tech=field in TECH_CITABLE_FIELDS
+        )
         cited |= nums
     analysis = CompetitorOutput(
         competitors=competitors, differentiation=draft.differentiation, **verified
