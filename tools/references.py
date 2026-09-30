@@ -91,7 +91,7 @@ def make_web_ref(result: dict, startup: str, used_by: str, run_date: str) -> dic
     url = _required_text(result.get("url"), "url")
     parsed = urlsplit(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        raise ValueError(f"웹 출처 URL은 HTTP(S) 주소여야 합니다: {url}")
+        raise ValueError("웹 출처 URL은 HTTP(S) 주소여야 합니다.")
     site_name = result.get("site_name") or parsed.hostname.removeprefix("www.")
     source_id = _source_id(url)
     return Reference(
