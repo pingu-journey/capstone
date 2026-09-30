@@ -10,6 +10,10 @@ from config import ROOT  # config가 프로젝트의 .env를 로드
 
 
 MODEL_NAME = "BAAI/bge-m3"
+# 기술 요약·시장성 평가가 병렬 스레드에서 동시에 첫 인코딩을 실행하면
+# torch 내부에서 프로세스가 죽으므로(segfault) 로드와 인코딩을 직렬화한다.
+# get_embedder()의 lru_cache가 동시 첫 호출에 인스턴스를 둘 만들 수 있어 모듈 단위 락을 쓴다.
+_MODEL_LOCK = threading.Lock()
 
 
 def _normalize(vectors, expected_count: int) -> list[list[float]]:
@@ -43,9 +47,6 @@ class Embedder:
         self.backend = backend
         self._model = None
         self._client = None
-        # 기술 요약·시장성 평가가 병렬 스레드에서 동시에 첫 인코딩을 실행하면
-        # torch 내부에서 프로세스가 죽으므로(segfault) 로드와 인코딩을 직렬화한다.
-        self._lock = threading.Lock()
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -55,7 +56,7 @@ class Embedder:
             raise ValueError("임베딩 입력은 비어 있지 않은 문자열이어야 합니다.")
 
         if self.backend == "local":
-            with self._lock:
+            with _MODEL_LOCK:
                 if self._model is None:
                     from sentence_transformers import SentenceTransformer
 

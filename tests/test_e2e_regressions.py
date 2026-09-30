@@ -36,21 +36,22 @@ class FakeSentenceTransformer:
 
 def test_embedder_serializes_model_load_and_encode(monkeypatch):
     monkeypatch.setattr(sentence_transformers, "SentenceTransformer", FakeSentenceTransformer)
-    embedder = Embedder("local")
+    # get_embedder()의 동시 첫 호출로 인스턴스가 둘 생겨도 락이 공유되어야 한다.
+    embedders = [Embedder("local"), Embedder("local")]
     barrier = threading.Barrier(4)
 
-    def work():
+    def work(index):
         barrier.wait()
-        embedder.embed_query("전력 수요 예측")
+        embedders[index % 2].embed_query("전력 수요 예측")
 
-    threads = [threading.Thread(target=work) for _ in range(4)]
+    threads = [threading.Thread(target=work, args=(i,)) for i in range(4)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
 
-    assert FakeSentenceTransformer.created == 1
-    assert FakeSentenceTransformer.max_active == 1
+    assert FakeSentenceTransformer.created == 2  # 인스턴스마다 한 번씩만 로드
+    assert FakeSentenceTransformer.max_active == 1  # 인스턴스가 달라도 인코딩은 동시에 하나만
 
 
 def test_market_figure_source_id_is_reference_id(monkeypatch):
