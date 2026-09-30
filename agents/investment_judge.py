@@ -28,6 +28,15 @@ ITEM_IDS = {
     "team", "market_size", "market_demand", "traction", "moat", "trl",
     "tech_value", "regulation", "scalability", "finance", "deal_terms",
 }
+INSUFFICIENT_ITEM_IDS = {
+    "tech_summary": {
+        "TRL": "trl", "팀 정보": "team", "성능 지표": "tech_value",
+        "검증된 성능 수치": "tech_value", "확장 가능성": "scalability",
+    },
+    "competitor_analysis": {
+        "Traction": "traction", "진입장벽": "moat", "경쟁사 비교": "moat",
+    },
+}
 
 
 class RubricItem(BaseModel):
@@ -129,6 +138,13 @@ def run(state) -> dict:
         ).model_dump(),
     }
     rubric = load_rubric()
+    # CompetitorAnalysis 검증은 insufficient를 제거하므로 원본에서 읽는다.
+    forced = {
+        mapping[label]
+        for key, mapping in INSUFFICIENT_ITEM_IDS.items()
+        for label in state[key].get("insufficient", [])
+        if label in mapping
+    }
     refs = filter_references(state.get("references", []), candidate.name)
     available_sources = {ref["id"] for ref in refs}
     # 이전 점수·판정·이력과 가중치는 채점 입력에서 제외한다.
@@ -153,7 +169,7 @@ def run(state) -> dict:
         draft = by_id[item["id"]]
         if set(draft.source_ids) - available_sources:
             raise ValueError(f"제공되지 않은 출처 ID가 채점 결과에 있습니다: item_id={draft.item_id}")
-        insufficient = draft.insufficient_info or not draft.source_ids
+        insufficient = draft.insufficient_info or not draft.source_ids or draft.item_id in forced
         rationale = draft.rationale
         if insufficient:
             rationale = f"공개 정보 부족(5점 적용): {rationale}"
