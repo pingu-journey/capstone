@@ -36,7 +36,7 @@ class TechSummaryDraft(TechSummary):
     used_team_sources: list[int] = []
 
 
-def _company(startup: dict) -> str:
+def company_label(startup: dict) -> str:
     domain = urlparse(startup.get("homepage") or "").netloc.removeprefix("www.")
     return f"{startup['name']} ({domain})" if domain else startup["name"]
 
@@ -85,7 +85,7 @@ def _insufficient(summary: TechSummary) -> list[str]:
 def run(state: dict) -> dict:
     startup = state["current_startup"]
     name, run_date = startup["name"], state["run_date"]
-    company = _company(startup)
+    company = company_label(startup)
     segment_ko = SEGMENT_KO[startup["segment"]]
 
     tech = agentic_rag.run(
