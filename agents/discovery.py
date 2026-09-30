@@ -69,7 +69,7 @@ def _seed_candidates(evaluated: set[str]) -> list[dict]:
     return [
         Candidate.model_validate(item).model_dump()
         for item in seeds
-        if item["name"] not in evaluated
+        if item["name"].casefold() not in evaluated
     ][:MAX_CANDIDATES_PER_ROUND]
 
 
@@ -87,7 +87,7 @@ def _save_round(candidates: list[dict], round_number: int) -> None:
 
 
 def run(state):
-    evaluated = set(state.get("evaluated", []))
+    evaluated = {name.casefold() for name in state.get("evaluated", [])}
     round_number = state.get("search_round", 0) + 1
     run_date = state["run_date"]
 
@@ -124,7 +124,7 @@ def run(state):
     judge = None
     for candidate in found:
         key = candidate.name.casefold()
-        if candidate.name in evaluated or key in accepted:
+        if key in evaluated or key in accepted:
             continue
         try:
             results = search(f'"{candidate.name}" IPO OR 상장 OR acquired OR 인수')

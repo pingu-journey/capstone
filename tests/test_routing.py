@@ -1,7 +1,7 @@
 import os
 from datetime import date
 
-from config import RECURSION_LIMIT
+from config import MAX_EVALUATIONS, RECURSION_LIMIT
 from graph.builder import build_graph
 from graph.routing import route_after_discover, route_after_judge
 
@@ -33,7 +33,7 @@ def test_discovery_limit_goes_to_report():
 def test_evaluation_limit_wins_over_queue():
     state = {
         "candidates": [{}],
-        "evaluated": list(map(str, range(8))),
+        "evaluated": list(map(str, range(MAX_EVALUATIONS))),
         "search_round": 1,
     }
     assert route_after_judge(state | {"decision": "보류"}) == "report"

@@ -13,16 +13,20 @@ def test_seed_mode_excludes_evaluated_candidates():
             os.environ, {"SEED_ONLY": "1"}
         ):
             result = discovery.run(
-                {"run_date": "2026-09-30", "search_round": 0, "evaluated": ["해줌"]}
+                {
+                    "run_date": "2026-09-30",
+                    "search_round": 0,
+                    "evaluated": ["AMPERON"],
+                }
             )
 
     assert result["search_round"] == 1
     assert len(result["candidates"]) == 4
-    assert all(candidate["name"] != "해줌" for candidate in result["candidates"])
+    assert all(candidate["name"] != "Amperon" for candidate in result["candidates"])
     assert "시드 후보 4곳" in result["log"][0]
 
 
-def test_live_mode_filters_duplicates_and_sorts_candidates():
+def test_live_mode_accepts_eligible_candidate_and_returns_reference():
     candidate = Candidate(
         name="Amperon",
         country="US",
