@@ -89,6 +89,9 @@ def _prepare(state):
             limitations.append("공개 정보 부족으로 5점 적용: " + ", ".join(missing) + ".")
         if tech["insufficient"]:
             limitations.append("기술·팀 정보 부족: " + ", ".join(tech["insufficient"]) + ".")
+        competitor_insufficient = state["competitor_analysis"].get("insufficient", [])
+        if competitor_insufficient:
+            limitations.append("경쟁 분석 정보 부족: " + ", ".join(competitor_insufficient) + ".")
         inputs = [
             {"current_startup": candidate, "tech_summary": {k: v for k, v in tech.items() if k != "team"}},
             {"market_analysis": market, "competitor_analysis": competitor},

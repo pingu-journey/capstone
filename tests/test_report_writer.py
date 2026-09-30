@@ -139,6 +139,19 @@ def test_limitations_are_deterministic(state, llm):
     assert len(rows) == 12 and rows[-1][3] == "78.5"
 
 
+@pytest.mark.parametrize("labels", [[], ["Traction"], ["Traction", "진입장벽", "경쟁사 비교"]])
+def test_competitor_insufficient_in_limitations(state, llm, labels):
+    state["competitor_analysis"]["insufficient"] = labels
+    before = deepcopy(state)
+    report = writer.build_report(state)
+    text = report.chapters[3].blocks[-1].text
+    if labels:
+        assert "경쟁 분석 정보 부족: " + ", ".join(labels) + "." in text
+    else:
+        assert "경쟁 분석 정보 부족:" not in text
+    assert state == before
+
+
 # 출처는 기업 필터 후 중복 제거하며 공통 출처와 서지 형식을 보존한다.
 def test_reference_selection(state, llm):
     common = make_web_ref({"title": "공통", "url": "https://example.org/common"}, "*", "market_eval", "2026-09-30")

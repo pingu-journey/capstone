@@ -200,6 +200,26 @@ def test_run_normalizes_insufficient_score(state, fake_llm, missing_source):
     assert "공개 정보 부족: 창업팀 역량" in update["evaluation_history"][0]["key_reason"]
 
 
+@pytest.mark.parametrize("key, labels, forced", [
+    ("tech_summary", ["TRL"], {"trl"}),
+    ("tech_summary", ["팀 정보", "성능 지표", "확장 가능성"], {"team", "tech_value", "scalability"}),
+    ("competitor_analysis", ["Traction"], {"traction"}),
+    ("competitor_analysis", ["진입장벽", "경쟁사 비교"], {"moat"}),
+    ("tech_summary", [], set()),
+])
+def test_run_forces_upstream_insufficient_items(state, fake_llm, key, labels, forced):
+    state["tech_summary"]["trl"] = 1
+    state[key]["insufficient"] = labels
+    before = deepcopy(state)
+    result, _, _ = fake_llm
+    next(item for item in result["items"] if item["item_id"] == "trl")["score"] = 1
+    update = judge.run(state)
+    for item_id, score in update["scores"].items():
+        assert score["insufficient_info"] is (item_id in forced)
+        assert score["score"] == (5 if item_id in forced else 1 if item_id == "trl" else 7)
+    assert state == before
+
+
 # 전체 출처가 없는 샘플은 근거를 만들어내지 않고 모든 항목을 정보 부족으로 처리하는지 확인한다.
 def test_run_without_sources(state, fake_llm):
     result, _, _ = fake_llm
