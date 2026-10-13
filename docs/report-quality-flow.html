@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>보고서는 어떻게 최종 확정되는가</title>
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#faf9f6,#171918);--paper:light-dark(#fff,#202321);--ink:light-dark(#202923,#e8ece8);--muted:light-dark(#59635d,#aab5ad);--line:light-dark(#d9dfd9,#424b44);--active:light-dark(#175c43,#90d8b5);--soft:light-dark(#eaf3ed,#273e31);--bad:light-dark(#9c431b,#f5b08d);--badbg:light-dark(#fff1e8,#422c22)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}main{max-width:1150px;margin:auto;padding:42px 28px 60px}h1{font-size:32px;line-height:1.3;font-weight:650;margin:8px 0 16px}h2{font-size:20px;margin:0 0 12px}h3{font-size:16px;margin:18px 0 8px}p{margin:0 0 12px}.meta,.small{font-size:13px;color:var(--muted)}.intro{max-width:850px}.principle{padding:16px 0;margin:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:17px}.principle strong{color:var(--active)}button,select{font:inherit;color:inherit}button{cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:8px 14px;background:var(--paper)}button:hover{background:var(--soft)}button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--active);outline-offset:3px}button:disabled{opacity:.4;cursor:default}.primary{background:var(--active);color:var(--bg);border-color:var(--active)}.primary:hover{background:var(--active);filter:brightness(.92)}select{max-width:100%;padding:9px 12px;background:var(--paper);border:1px solid var(--line);border-radius:6px}.controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:24px 0 16px}.picker{flex:1;min-width:220px}.picker label{display:block;font-size:13px;margin-bottom:4px}.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.state{display:flex;flex-wrap:wrap;gap:10px 28px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}.state span{color:var(--muted)}.state b{font-weight:600}.workspace{display:grid;grid-template-columns:minmax(250px,340px) minmax(0,1fr);gap:36px;margin-top:26px}.flow{display:flex;flex-direction:column;align-items:stretch}.node{text-align:left;display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:6px;background:transparent}.node .num{font-size:14px;flex:none;color:var(--muted);width:20px}.node strong{display:block;font-weight:600}.node code{display:block;font-size:12px;color:var(--muted)}.node.active{background:var(--soft);border-color:var(--active)}.node.active .num{color:var(--active)}.node.visited .num::after{content:' ·'}.connector{text-align:center;color:var(--muted);padding:1px 0;font-size:13px}.loop{margin:12px 0;font-size:13px;color:var(--active);padding:8px 0;border-bottom:1px solid var(--line)}.detail{min-width:0}.detail .current{font-size:13px;color:var(--active);margin-bottom:6px}.result{margin:14px 0;padding:12px 14px;background:var(--soft);border-radius:6px}.result.fail{background:var(--badbg);color:var(--bad)}dl{display:grid;grid-template-columns:60px minmax(0,1fr);gap:8px 14px;margin:14px 0}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.86em;overflow-wrap:anywhere}a{color:var(--active)}ul,ol{padding-left:22px;margin:8px 0 16px}li{margin-bottom:6px}.checks{width:100%;border-collapse:collapse;font-size:14px}.checks th,.checks td{text-align:left;padding:10px 7px;border-bottom:1px solid var(--line);vertical-align:top}.checks th{font-weight:600;color:var(--muted)}.checks td:last-child{width:85px;white-space:nowrap}.pass{color:var(--active)}.failtext{color:var(--bad)}.history{margin:30px 0 0;border-top:1px solid var(--line);padding-top:20px}.history ol{margin-bottom:0}.history li{font-size:14px}.pill{font-size:12px;margin-right:8px;color:var(--muted)}details{border-top:1px solid var(--line);padding:18px 0}summary{cursor:pointer;font-weight:600}details .content{padding-top:15px}.compare{display:grid;grid-template-columns:1fr 1fr;gap:28px}.compare h3{margin-top:0}.footnote{padding-top:20px;border-top:1px solid var(--line);margin-top:24px}.source{font-size:13px;color:var(--muted)}.scenario-note{font-size:13px;color:var(--muted);margin-bottom:0}.gate{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;padding:12px 0;overflow-wrap:anywhere}
+@media(max-width:740px){main{padding:24px 18px 40px}h1{font-size:26px}.workspace{grid-template-columns:1fr;gap:22px}.flow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.node{padding:10px;gap:8px}.connector{display:none}.loop{grid-column:1/-1;margin:2px 0}.compare{grid-template-columns:1fr;gap:12px}.checks{font-size:13px}.checks th,.checks td{padding:8px 4px}.controls{align-items:flex-end}.actions{width:100%}.node code{font-size:11px}.principle{font-size:16px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="meta">현재 코드 흐름 · 2026.10.13 · 실제 LLM 호출 없이 보는 설명용 시뮬레이션</div>
+<h1>보고서는 어떻게 최종 확정되는가</h1>
+<p class="intro">PDF가 만들어져도 바로 최종 보고서가 되지는 않습니다. 생성된 본문과 PDF를 검사하고, 독립 LLM이 내용의 품질을 평가한 뒤 모든 조건을 통과한 버전만 확정합니다.</p>
+<div class="principle">품질 미달 → <strong>같은 기업의 보고서를 다시 작성</strong> → 재평가<br><span class="small">기존 분석·투자 점수·판정은 유지합니다. 품질 루프에서 다음 기업을 선택하거나 조사를 다시 실행하지 않습니다.</span></div>
+</header>
+<section aria-label="보고서 흐름 시뮬레이션">
+<div class="controls">
+<div class="picker"><label for="scenario">보고 싶은 상황</label><select id="scenario">
+<option value="improve">품질 미달 → 개선 후 통과</option>
+<option value="pass">첫 보고서가 바로 통과</option>
+<option value="exhaust">3개 버전 모두 미달 → 종료</option>
+<option value="draftError">초안 생성 실패 → 다시 생성</option>
+<option value="judgeError">품질 Judge 호출 실패 → 종료</option>
+<option value="historical">이전 실제 실행 기록 · 수정 전</option>
+</select></div>
+<div class="actions"><button id="prev" type="button">← 이전</button><button id="next" class="primary" type="button">다음 단계 →</button><span id="stepCount" class="small"></span></div>
+</div>
+<p id="scenarioNote" class="scenario-note"></p>
+<div class="state" aria-live="polite"><div><span>기업</span> <b id="company">같은 기업 유지</b></div><div><span>보고서</span> <b id="version">v1</b></div><div><span>개선 기회</span> <b id="remaining"></b></div><div><span>현재 단계</span> <b id="status"></b></div></div>
+<div class="workspace">
+<nav class="flow" aria-label="단계 선택">
+<button class="node" data-node="input" type="button"><span class="num">1</span><span><strong>확정 분석과 근거</strong><code>State → 보고서 입력</code></span></button><div class="connector">↓</div>
+<button class="node" data-node="draft" type="button"><span class="num">2</span><span><strong>본문 생성 + 검토용 PDF</strong><code>report_draft</code></span></button><div class="connector">↓ 생성 실패도 기록 후 전달</div>
+<button class="node" data-node="quality" type="button"><span class="num">3</span><span><strong>코드 검사 + LLM 평가</strong><code>report_quality · Hybrid</code></span></button><div class="connector">↓</div>
+<button class="node" data-node="route" type="button"><span class="num">4</span><span><strong>통과 / 개선 / 종료 결정</strong><code>route_after_quality</code></span></button>
+<div class="loop">↶ 복구 가능한 미달 + v1 또는 v2 → 2번으로</div>
+<button class="node" data-node="outcome" type="button"><span class="num">5</span><span><strong>최종 확정 또는 미달 종료</strong><code>report_finalize / quality_failed</code></span></button>
+</nav>
+<section class="detail" aria-live="polite" aria-atomic="true"><div id="detail"></div></section>
+</div>
+<div class="history"><h2>이 상황의 진행 기록</h2><ol id="history"></ol></div>
+</section>
+<section style="margin-top:32px" aria-label="추가 설명">
+<details><summary>무엇을 개선하고, 무엇을 유지하나요?</summary><div class="content compare"><div><h3>다시 생성하는 것</h3><ul><li>본문 4개 장과 SUMMARY를 LLM으로 재작성합니다.</li><li>이전 <code>quality_result</code>의 실패 이유와 구체적인 수정 지시를 생성 프롬프트에 전달합니다.</li><li>근거 없는 주장은 삭제하거나 정보 부족으로 표시하고, 표현·분량·인용을 수정하도록 지시합니다.</li></ul></div><div><h3>그대로 사용하는 것</h3><ul><li>선택된 기업과 기존 기술·시장·경쟁 분석</li><li>투자 점수·판정·평가 이력과 코드 생성 표</li><li>이미 수집한 원문 발췌와 출처</li></ul><p class="small">이 루프에는 추가 검색·RAG·기업 교체가 없습니다. 필요한 근거가 애초에 없다면 문장을 고쳐도 통과가 어려울 수 있습니다.</p></div></div></details>
+<details><summary>“다시 시도”가 세 종류라서 헷갈려요</summary><div class="content"><ol><li><strong>한 장 내부의 재생성:</strong> 구조·인용·숫자·글자 수가 잘못되면 해당 장을 한 번 더 작성합니다. SUMMARY도 검증 실패 시 한 번 더 작성합니다. 이때 보고서 버전은 증가하지 않습니다.</li><li><strong>PDF 분량 축소:</strong> 5쪽을 넘으면 본문 예산을 100% → 80% → 64%로 줄여 다시 생성·조판합니다. 그래도 넘으면 압축 조판을 시도합니다. 이것도 같은 버전 내부의 처리입니다.</li><li><strong>그래프의 품질 개선 루프:</strong> 평가 후 미달이면 피드백을 넣어 새 보고서 버전을 만듭니다. 최초 v1 + 개선 v2·v3, 최대 3개 버전입니다.</li></ol><p class="small">품질 Judge 호출·응답 검증은 최대 2회 시도합니다. 그래도 실패하면 통과로 처리하지 않고 개선 불가로 종료합니다. 인증·요청 설정 오류가 ConfigurationError로 전파되는 경우에는 그래프 실행 자체가 예외로 중단될 수 있습니다.</p></div></details>
+<details><summary>어느 파일을 보면 실패 원인을 알 수 있나요?</summary><div class="content"><p><code>outputs/runs/{run_id}/</code> 안에서 같은 버전 번호를 비교하면 됩니다.</p><div class="compare"><div><h3>생성 결과</h3><p><code>draft_vN.json</code><br>생성된 보고서 또는 <code>error_code</code>·<code>error_reason</code></p><p><code>preview_vN.pdf / .md</code><br>평가용 산출물. 생성 실패 시 PDF는 없을 수 있습니다.</p></div><div><h3>평가와 최종 결과</h3><p><code>quality_vN.json</code><br>각 항목의 <code>passed</code>·<code>reason</code>·<code>feedback</code>, 구조 검사와 <code>recoverable</code></p><p><code>report_vN.pdf / .md</code><br>통과한 버전만 생성하는 최종 산출물</p></div></div><p class="small">생성 오류를 기록한 평가 결과에서는 3개 내용 항목 모두 같은 오류로 실패할 수 있습니다. 실제로 LLM이 3개 항목을 각각 평가했다는 의미는 아닙니다.</p></div></details>
+<details><summary>방금 수정한 평가 오탐은 어떻게 달라졌나요?</summary><div class="content"><p>원문에 숫자 7이 없어도 <strong>“현장 실증 근거로 TRL 7로 평가한다”</strong>는 분석 결과일 수 있습니다. 현재 코드는 투자 보고서 1장에서 State의 TRL 값·판단근거·기술 출처가 연결된 명시적 평가의 숫자 위치만 예외 처리합니다.</p><p>State와 다른 TRL, 같은 문단의 근거 없는 “7 GW”, 출처 없는 평가는 계속 거부합니다. LLM Judge는 원문 발췌가 실제 판단근거를 지지하는지 별도로 검사합니다.</p><p class="small">수정 후 전체 277개 테스트는 통과했습니다. 실제 LLM으로 최종 보고서가 통과하는지 재실행한 결과는 아직 없습니다. 위 “이전 실제 실행 기록”은 수정 전 결과입니다.</p></div></details>
+</section>
+<footer class="footnote source">코드 기준: <a href="../agents/report_writer.py">agents/report_writer.py</a> · <a href="../agents/report_quality.py">agents/report_quality.py</a> · <a href="../graph/routing.py">graph/routing.py</a> · <a href="../schemas.py">schemas.py</a> · <a href="../config.py">config.py</a><br>단계를 클릭하면 내부 입력·출력·검사를 볼 수 있습니다. 상황 선택과 “다음 단계”는 설명용 재생이며 실제 모델이나 파일 생성 작업을 실행하지 않습니다.</footer>
+</main>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const stageNames={input:'확정된 입력',draft:'초안 생성',quality:'품질 평가',route:'분기 결정',outcome:'최종 처리'};
+const checkNames=['구조','근거성','중립성','편향'];
+const checkDescriptions=['확정 판정·점수·표, 목차·분량, PDF와 본문의 일치','주장·수치·출처와 실제 원문 발췌의 일치','무조건적인 추천·기술 우열·홍보 표현','출처 편중·기업 홍보 의존·리스크와 한계'];
+const good={checks:[true,true,true,true],recoverable:true};
+const bad={checks:[true,false,false,true],recoverable:true,reason:'근거 없는 수치와 홍보 표현을 수정하세요.'};
+const limits={checks:[true,false,true,true],recoverable:true,reason:'인용 원문에 없는 수치를 삭제하거나 정보 부족으로 표시하세요.'};
+const draftFailure={checks:[false,false,false,false],recoverable:true,draftError:true,reason:'ReportValidationError: 장별 본문 검증에 두 번 실패했습니다.'};
+const judgeFailure={checks:[true,false,false,false],recoverable:false,judgeError:true,reason:'품질 Judge 호출·응답 검증 실패. 자동 통과할 수 없습니다.'};
+const scenarios={
+improve:{note:'설명용 예시 · v1 미달 → 피드백 반영 → v2 통과',rounds:[bad,good]},
+pass:{note:'설명용 예시 · 구조와 3개 품질 항목을 처음부터 모두 통과',rounds:[good]},
+exhaust:{note:'설명용 예시 · 미달이 반복되면 v3에서 개선 상한으로 종료',rounds:[limits,limits,limits]},
+draftError:{note:'설명용 예시 · PDF가 생성되지 않은 실패도 품질 노드에 전달되어 개선 여부를 판단',rounds:[draftFailure,good]},
+judgeError:{note:'설명용 예시 · 모델 평가 결과를 얻지 못하면 통과시키지 않고 종료',rounds:[judgeFailure]},
+historical:{note:'수정 전 실제 저장 기록 · run_id f0f1876af9aa4b1495f02ffe8bd25aae · 수정 후 결과가 아님',rounds:[
+{checks:[false,false,false,false],recoverable:true,reason:'PDF와 본문 불일치, 인용 원문에 없는 수치, 홍보 표현, 리스크 설명 부족.'},
+{checks:[true,false,true,true],recoverable:true,reason:'중립성·편향·구조는 통과했지만 1장 인용 원문에 없는 수치가 남았습니다.'},
+{checks:[false,false,false,false],recoverable:true,draftError:true,reason:'ReportLayoutError: SUIT에 없는 글리프 U+6301. PDF 생성 실패.'}
+]}
+};
+let scenario='improve',position=0,selected=null,timeline=[];
+const passed = round => round.checks.every(Boolean);
+const route = (round,version) => passed(round)?'finalize':round.recoverable && version<=2?'loop':'stop';
+function makeTimeline(){timeline=[{node:'input',version:1}];scenarios[scenario].rounds.forEach((round,i)=>{const version=i+1;['draft','quality','route'].forEach(node=>timeline.push({node,version,round}));if(route(round,version)!=='loop')timeline.push({node:'outcome',version,round});});}
+function checkTable(round){return '<table class="checks"><thead><tr><th>검사</th><th>무엇을 확인하나</th><th>이 상황</th></tr></thead><tbody>'+checkNames.map((name,i)=>'<tr><td>'+name+'</td><td>'+checkDescriptions[i]+'</td><td class="'+(round.checks[i]?'pass':'failtext')+'">'+(round.checks[i]?'통과':round.draftError?'생성 실패':round.judgeError&&i>0?'판정 없음':'미달')+'</td></tr>').join('')+'</tbody></table>';}
+function info(node,entry){const v=entry.version,r=entry.round||scenarios[scenario].rounds[0],branch=route(r,v),isPassed=passed(r);let result='',content='';
+if(node==='input'){content='<h2>이미 확정된 분석을 읽습니다</h2><dl><dt>입력</dt><dd>선택 기업, 기술·시장·경쟁 분석, 투자 점수·판정, 원문 발췌와 출처</dd><dt>처리</dt><dd>보고서 경로를 투자 / 보류로 선택하고 확정 표·분석 한계를 구성합니다.</dd><dt>다음</dt><dd>동일 입력으로 본문과 SUMMARY를 생성합니다.</dd></dl><p>기업 탐색과 투자 판단은 이 구간보다 앞에서 끝납니다. <strong>이후 품질 미달은 기업의 투자 판정을 다시 계산하는 과정이 아닙니다.</strong></p><p class="source">report_writer._prepare(state)</p>';}
+if(node==='draft'){result=r.draftError?'<div class="result fail">이 상황: '+r.reason+'<br>검증용 PDF 없음 → 오류를 기록한 JSON을 품질 노드에 전달</div>':'<div class="result">이 상황: v'+v+' 검토용 PDF 생성 · 아직 최종 보고서가 아님</div>';content='<h2>본문을 쓰고, PDF를 실제로 만듭니다</h2><dl><dt>입력</dt><dd>확정 분석 + 출처 ID + 원문 발췌'+(v>1?' + 이전 버전 품질 피드백':'')+'</dd><dt>생성</dt><dd>LLM이 본문 4개 장 → SUMMARY를 생성합니다. 표와 참고문헌은 코드로 구성합니다.</dd><dt>검증</dt><dd>응답 구조·인용 ID·원문에 없는 숫자·글자 수·SUMMARY 판정 일치를 검사합니다.</dd><dt>조판</dt><dd>PDF를 생성하고 5쪽 이하를 확인합니다. 넘으면 본문 예산을 줄여 재작성합니다.</dd><dt>출력</dt><dd><code>draft_v'+v+'.json</code> + <code>preview_v'+v+'.pdf / .md</code><br>실패하면 오류 JSON, PDF 경로는 <code>None</code></dd></dl>'+result+'<p class="source">report_writer.draft() → build_report() → render_pdf()</p>';}
+if(node==='quality'){content='<h2>형식과 내용을 함께 평가합니다</h2><p>먼저 코드가 검사하고, 그다음 독립 LLM Judge가 <strong>보고서 + 실제 원문 발췌 + 확정 State</strong>를 대조합니다. 코드의 실패 판정을 LLM이 뒤집을 수는 없습니다.</p>'+checkTable(r)+'<div class="gate">passed = structure_passed AND groundedness.passed<br>　　　 AND neutrality.passed AND bias.passed</div>'+(isPassed?'<div class="result">4개 조건 모두 통과했습니다.</div>':'<div class="result fail">'+r.reason+'</div>')+'<dl><dt>출력</dt><dd><code>quality_v'+v+'.json</code><br>각 항목의 통과 여부·실패 이유·수정 지시와 <code>recoverable</code></dd></dl>'+(r.draftError?'<p><strong>이 상황에서는 Judge를 호출하지 않습니다.</strong> 생성 오류를 3개 항목과 구조 검사에 동일하게 기록합니다.</p>':r.judgeError?'<p>Judge 호출·응답을 최대 2회 시도해도 실패했습니다. 내용 평가 결과가 없으므로 <code>recoverable=false</code>로 종료합니다.</p>':'<p>통과 시 보고서 JSON과 PDF의 해시를 저장합니다. 확정 전 변경 여부를 확인하기 위한 값입니다.</p>')+'<p class="source">report_quality.run() · code_checks() · QualityVerdict.passed</p>';}
+if(node==='route'){content='<h2>세 갈래 중 하나를 선택합니다</h2><ol><li>모든 조건 통과 → <strong>최종 확정</strong></li><li>미달 + <code>recoverable=true</code> + v1 또는 v2 → <strong>새 버전 생성</strong></li><li>나머지: v3 미달 또는 개선 불가 → <strong>미달 종료</strong></li></ol><div class="result '+(branch==='stop'?'fail':'')+'">이 상황: '+(branch==='finalize'?'모두 통과 → report_finalize':branch==='loop'?'미달이지만 개선 가능 → report_draft · 다음 v'+(v+1):'미달 + '+(!r.recoverable?'개선 불가':'v3 상한 도달')+' → quality_failed')+'</div>'+(branch==='loop'?'<p><strong>같은 기업, 같은 분석으로 돌아갑니다.</strong> 이전 결과의 <code>feedback</code>을 새 장별 프롬프트와 SUMMARY 프롬프트에 넣습니다. 특정 문장만 편집하는 방식이 아니라 보고서를 재생성합니다.</p>':'')+'<p class="source">graph/routing.py · route_after_quality()</p>';}
+if(node==='outcome' && branch==='loop'){return '<div class="current">선택한 단계의 내부 · 최종 처리</div><h2>현재 버전은 아직 최종 처리하지 않습니다</h2><p>v'+v+'의 평가 결과는 개선 가능한 미달입니다. 먼저 v'+(v+1)+'을 작성하고 다시 평가합니다.</p><dl><dt>통과 시</dt><dd>동일 버전·해시 확인 후 최종 PDF·Markdown을 저장합니다.</dd><dt>미달 시</dt><dd>v3 미달 또는 개선 불가라면 최종 보고서 없이 종료합니다.</dd></dl><div class="result">현재 경로: report_draft로 돌아가기</div>'; }
+if(node==='outcome'){content=branch==='finalize'?'<h2>통과한 버전을 최종 확정합니다</h2><p>버전 번호, 보고서 JSON 해시, PDF 해시가 평가 당시와 같은지 확인합니다. <strong>평가를 통과한 PDF를 그대로 복사</strong>하며 확정 단계에서 본문을 다시 생성하지 않습니다.</p><dl><dt>산출물</dt><dd><code>report_v'+v+'.pdf / .md</code></dd><dt>State</dt><dd><code>execution_status = "complete"</code><br><code>report_path = 최종 PDF 경로</code></dd></dl><div class="result">최종 보고서 확보 · 그래프 종료</div><p class="source">report_writer.finalize()</p>':'<h2>최종 확정 없이 종료합니다</h2><p>'+(!r.recoverable?'검증 가능한 평가 결과를 얻지 못해 재생성을 중단합니다.':'최초 v1과 두 번의 개선 v2·v3까지 미달하여 중단합니다.')+'</p><dl><dt>보존</dt><dd>생성된 초안·검토용 PDF·Markdown·실패 사유 JSON<br>생성되지 않은 파일은 존재하지 않습니다.</dd><dt>State</dt><dd><code>execution_status = "quality_failed"</code><br><code>report_path = None</code></dd></dl><div class="result fail">최종 보고서 없음 · 그래프 종료</div><p>이 경로에서 다음 기업으로 넘어가지 않습니다.</p><p class="source">report_quality.failed()</p>';}
+return '<div class="current">'+(selected?'선택한 단계의 내부':'현재 실행 단계')+' · '+stageNames[node]+'</div>'+content;}
+function historyText(e){const r=e.round,v=e.version;if(e.node==='input')return '확정 분석·판정·원문 발췌 준비';if(e.node==='draft')return 'v'+v+(r.draftError?' 초안 생성 실패 · 오류 기록':' 검토용 PDF 생성');if(e.node==='quality')return 'v'+v+' 평가: '+(r.draftError?'생성 오류로 미달 · Judge 생략':r.judgeError?'Judge 실패 · 개선 불가':passed(r)?'모든 조건 통과':checkNames.filter((_,i)=>!r.checks[i]).join('·')+' 미달');if(e.node==='route')return route(r,v)==='loop'?'피드백을 전달해 v'+(v+1)+' 재작성':route(r,v)==='finalize'?'통과한 동일 버전 확정으로 이동':'추가 개선 없이 종료로 이동';return route(r,v)==='finalize'?'최종 report_v'+v+'.pdf 확보 · complete':'최종 보고서 없음 · quality_failed';}
+function render(){const entry=timeline[position],node=selected||entry.node;$('scenario').value=scenario;$('scenarioNote').textContent=scenarios[scenario].note;$('stepCount').textContent=(position+1)+' / '+timeline.length;$('prev').disabled=position===0;$('next').disabled=position===timeline.length-1;$('version').textContent='v'+entry.version+' / 최대 v3';$('remaining').textContent=(3-entry.version)+'회';$('status').textContent=stageNames[entry.node];$('company').textContent=scenario==='historical'?'Amperon':'동일 기업';$('detail').innerHTML=info(node,entry);document.querySelectorAll('[data-node]').forEach(b=>{const active=b.dataset.node===node;b.classList.toggle('active',active);b.classList.toggle('visited',timeline.slice(0,position).some(e=>e.node===b.dataset.node));b.setAttribute('aria-pressed',String(active));});$('history').replaceChildren(...timeline.slice(0,position+1).map(e=>{const li=document.createElement('li');li.textContent=historyText(e);return li;}));}
+$('scenario').addEventListener('change',e=>{scenario=e.target.value;position=0;selected=null;makeTimeline();render();});$('prev').addEventListener('click',()=>{if(position>0){position--;selected=null;render();}});$('next').addEventListener('click',()=>{if(position<timeline.length-1){position++;selected=null;render();}});document.querySelectorAll('[data-node]').forEach(b=>b.addEventListener('click',()=>{selected=b.dataset.node;render();}));makeTimeline();render();
+})();
+</script>
+</body>
+</html>

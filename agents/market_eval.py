@@ -6,6 +6,11 @@ from schemas import MarketAnalysis, SEGMENT_KO
 from state import InvestState
 from tools.llm import get_llm
 from tools.references import make_doc_ref
+from tools.services import check_service_error
+
+
+class MarketDraft(MarketAnalysis):
+    used_source_ids: list[str] = []
 
 
 PROMPT_PATH = ROOT / "prompts" / "market_eval.md"
@@ -98,6 +103,13 @@ def run(state: InvestState) -> dict:
         }
 
     context, doc_ids = _collect_context(country, segment)
+    return synthesize(startup, context, doc_ids)
+
+
+def synthesize(startup, context, doc_ids):
+    name = startup["name"]
+    country, segment = startup["country"].upper(), startup["segment"]
+    cache_key = f"{country}|{segment}"
     references = [
         make_doc_ref(doc_id, startup=name, used_by="market_eval")
         for doc_id in doc_ids
@@ -113,7 +125,7 @@ def run(state: InvestState) -> dict:
     # MarketAnalysis에는 기본값이 있는 필드가 포함되어 있어 OpenAI의 strict
     # JSON Schema보다 function calling 방식이 호환성이 높다.
     structured_llm = get_llm().with_structured_output(
-        MarketAnalysis,
+        MarketDraft,
         method="function_calling",
     )
     analysis = None
@@ -133,23 +145,28 @@ def run(state: InvestState) -> dict:
             _validate_figures(analysis, set(doc_ids))
             break
         except Exception as error:
+            check_service_error(error)
             last_error = error
             analysis = None
 
     if analysis is not None:
+        used_ids = set(getattr(analysis, "used_source_ids", [])) | {f.source_id for f in analysis.market_size}
+        references = [ref for doc_id, ref in zip(doc_ids, references) if doc_id in used_ids]
+        analysis.sources = references
         # LLM에는 doc_id를 보여 주고 검증한 뒤, 명세 3.1대로 Reference.id로 바꿔 저장한다.
         # (보고서는 source_id를 references의 id와 대조한다)
-        ref_ids = dict(zip(doc_ids, (ref["id"] for ref in references)))
+        ref_ids = {doc_id: make_doc_ref(doc_id, name, "market_eval")["id"] for doc_id in used_ids if doc_id in doc_ids}
         for figure in analysis.market_size:
             figure.source_id = ref_ids.get(figure.source_id, figure.source_id)
 
     if analysis is None:
+        references = []
         analysis = _fallback(country, segment, references)
         status = f"구조화 출력 실패: {type(last_error).__name__}"
     else:
         status = f"근거 문서 {len(doc_ids)}개로 시장 분석 완료"
 
-    dumped = analysis.model_dump()
+    dumped = MarketAnalysis.model_validate(analysis.model_dump()).model_dump()
     return {
         "market_analysis": dumped,
         "market_cache": {cache_key: dumped},

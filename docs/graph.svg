@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1020" height="1030" viewBox="0 0 1020 1030" role="img" aria-label="LangGraph Orchestrator-Workers 흐름">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#4b5563"/></marker></defs>
+<rect width="100%" height="100%" fill="white"/>
+<g font-family="Arial, sans-serif" font-size="16">
+<polyline points="520,87 520,115" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="520,157 520,185" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="520,227 520,255" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="520,297 520,345" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="540" y="322" fill="#52525b">Send × N</text>
+<polyline points="520,387 520,435" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="520,477 520,505" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="520,547 520,575" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="520,617 520,675" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="520,717 520,765" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="380,276 285,276 285,456 380,456" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="115" y="365" fill="#52525b">0개: 캐시 집계</text>
+<polyline points="380,596 190,596 190,206 380,206" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="30" y="545" fill="#52525b">보류: 다음 후보</text>
+<polyline points="380,136 75,136 75,680 380,680" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="95" y="660" fill="#52525b">후보 없음 / 상한</text>
+<polyline points="380,786 315,786 315,696 380,696" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="170" y="740" fill="#52525b">미달 + 개선</text>
+<polyline points="520,807 520,837 375,837 375,860" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="330" y="830" fill="#52525b">통과</text>
+<polyline points="520,807 520,837 700,837 700,860" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="710" y="835" fill="#52525b">상한 / 복구 불가</text>
+<polyline points="375,902 375,928 540,928 540,950" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<polyline points="700,902 700,928 540,928" fill="none" stroke="#4b5563" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="380" y="45" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="71" text-anchor="middle" fill="#18181b">initialize · 실행 ID</text>
+<rect x="380" y="115" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="141" text-anchor="middle" fill="#18181b">discover · 후보 발굴</text>
+<rect x="380" y="185" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="211" text-anchor="middle" fill="#18181b">select · 후보 선택</text>
+<rect x="380" y="255" width="280" height="42" rx="4" fill="#e5e7eb" stroke="#4b5563"/>
+<text x="520" y="281" text-anchor="middle" fill="#18181b">orchestrator · 계획 저장</text>
+<rect x="380" y="345" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="371" text-anchor="middle" fill="#18181b">research_worker · Send × N</text>
+<rect x="380" y="435" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="461" text-anchor="middle" fill="#18181b">synthesizer · 결과 집계</text>
+<rect x="380" y="505" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="531" text-anchor="middle" fill="#18181b">competitor · 경쟁사 비교</text>
+<rect x="380" y="575" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="601" text-anchor="middle" fill="#18181b">judge · 코드 판정</text>
+<rect x="380" y="675" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="520" y="701" text-anchor="middle" fill="#18181b">report_draft · PDF 초안</text>
+<rect x="380" y="765" width="280" height="42" rx="4" fill="#e5e7eb" stroke="#4b5563"/>
+<text x="520" y="791" text-anchor="middle" fill="#18181b">report_quality · 근거/중립/편향</text>
+<rect x="235" y="860" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="375" y="886" text-anchor="middle" fill="#18181b">report_finalize · 통과</text>
+<rect x="560" y="860" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="700" y="886" text-anchor="middle" fill="#18181b">quality_failed · 초안 보존</text>
+<rect x="400" y="950" width="280" height="42" rx="4" fill="#f3f4f6" stroke="#4b5563"/>
+<text x="540" y="976" text-anchor="middle" fill="#18181b">END</text>
+</g></svg>

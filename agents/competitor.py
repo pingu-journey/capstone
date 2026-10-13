@@ -9,6 +9,7 @@ from schemas import SEGMENT_KO, Competitor, CompetitorAnalysis
 from tools.llm import get_llm
 from tools.references import make_web_ref
 from tools.web_search import search
+from tools.services import check_service_error
 
 
 USED_BY = "competitor"
@@ -135,7 +136,8 @@ def run(state: dict) -> dict:
         try:
             draft = llm.invoke(prompt)
             break
-        except Exception:
+        except Exception as error:
+            check_service_error(error)
             continue
     failed = draft is None
     draft = draft or _fallback()
@@ -162,8 +164,6 @@ def run(state: dict) -> dict:
     analysis.insufficient = _insufficient(analysis)
 
     used = sorted(n for n in cited if 1 <= n <= n_sources)
-    if not used:  # 비었거나 실패 → 넘긴 검색 결과 전부
-        used = list(range(1, len(results) + 1))
     references = [make_web_ref(results[n - 1], name, USED_BY, run_date) for n in used]
 
     status = "생성 실패 → 기본값" if failed else f"경쟁사 {len(analysis.competitors)}곳"

@@ -8,6 +8,7 @@ from config import DATA_DIR, MAX_CANDIDATES_PER_ROUND, OUTPUT_DIR, ROOT
 from schemas import Candidate, Segment
 from tools.llm import get_judge_llm, get_llm
 from tools.web_search import search
+from tools.services import check_service_error
 
 
 QUERY_TEMPLATES = {
@@ -50,6 +51,7 @@ def _invoke_with_retry(llm, schema, prompt: str):
         try:
             return structured.invoke(prompt)
         except Exception as exc:
+            check_service_error(exc)
             error = exc
     raise RuntimeError(f"구조화 출력 검증에 실패했습니다: {error}")
 
@@ -118,6 +120,7 @@ def run(state):
             )
             found.extend(_invoke_with_retry(llm, CandidateBatch, prompt).candidates)
         except Exception as exc:
+            check_service_error(exc)
             errors.append(f"{query}: {exc}")
 
     accepted: dict[str, Candidate] = {}
@@ -145,6 +148,7 @@ def run(state):
             )
             check = _invoke_with_retry(judge, Eligibility, prompt)
         except Exception as exc:
+            check_service_error(exc)
             errors.append(f"{candidate.name}: {exc}")
             continue
         if check.eligible and not check.listed and not check.exited and check.stage != "Unknown":

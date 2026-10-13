@@ -1,216 +1,170 @@
 # AI Startup Investment Evaluation Agent
 
-Energy(AI 기반 전력 수요 예측·발전/배터리 운영·전력망 관리) 스타트업의 투자 가능성을 자동으로 평가하는 LangGraph 기반 Multi-Agent 시스템입니다. 웹 검색과 문서 기반 RAG로 기술력·시장성·경쟁력을 분석하고, 평가 기준에 따라 투자 여부를 판단해 5페이지 이내의 투자 보고서 PDF를 생성합니다.
+Energy AI 스타트업을 발굴·조사·평가하고 투자 보고서를 생성하는 **LangGraph Orchestrator-Workers** 시스템입니다. 기존 기술 Agentic RAG와 시장 Advanced RAG를 조사 도구로 재사용합니다.
 
 ## Overview
 
-- **Objective**: Energy AI 스타트업의 기술력, 시장성, 경쟁력, 팀 역량을 근거 기반으로 분석하고 투자 적합성을 평가합니다.
-- **Method**: LangGraph Multi-Agent, Agentic RAG(기술 요약), Advanced RAG(시장성 평가)를 결합합니다.
-- **대상 기업**: 비상장, Seed~Series C 단계이며 M&A·IPO 등 Exit가 완료되지 않은 스타트업입니다.
-- **분석 분야**: 전력 수요 예측, 발전 예측·가상발전소(VPP), 배터리(ESS) 운영, 전력망 관리입니다.
-- **산출물**: 투자 추천 보고서 또는 전체 후보 보류 보고서, 검토용 Markdown, 실행 로그입니다.
+- **Objective:** 전력 수요 예측, 발전 예측·VPP, ESS 운영, 전력망 관리 스타트업의 투자 가능성을 공개 근거로 평가합니다.
+- **Method:** 규칙 기반 Orchestrator가 부족한 관점을 계획하고 `Send`로 worker를 동적으로 생성합니다. Synthesizer가 결과를 집계하고, 보고서를 코드 검사와 LLM Judge로 평가합니다.
+- **대상:** 비상장, Seed~Series C, M&A·IPO 등 Exit 미완료 기업.
+- **판정:** 11개 항목의 가중합 70점 이상, 창업팀·규제 점수가 모두 4점 이상이면 투자. 공개 정보 부족은 5점으로 처리합니다. 합산과 판정은 코드가 담당합니다.
+- **산출물:** 품질을 통과한 PDF·Markdown, 실행별 계획·작업 결과·원문 근거·품질 판정·실행 기록.
 
-상세 설계와 협업 기준은 [구현 명세서](docs/IMPLEMENTATION_PLAN.md)와 [작업 분배표](docs/WORK_DIVISION.md)를 참고하세요.
+패턴 변경 계획은 [PLAN.md](PLAN.md), State 설계는 [STATE_DESIGN.md](docs/STATE_DESIGN.md)를 참고하세요. 기존 [RAG 구현 명세](docs/IMPLEMENTATION_PLAN.md)와 [작업 분배](docs/WORK_DIVISION.md)는 이전 실습의 설계 기록입니다. 현재 실행 구조는 이 README와 PLAN을 따릅니다.
+
+테스트·실제 trace·PDF 검증의 결과와 미완료 제출 항목은 [검증 기록](docs/VALIDATION.md)에 구분해 기록했습니다.
 
 ## Features
 
-- **스타트업 자동 발굴**: 웹 검색으로 후보를 수집하고 투자 단계·상장 여부·Exit 여부를 검증합니다.
-- **기술·시장 병렬 분석**: 기술 요약과 시장성 평가를 동시에 수행한 뒤 경쟁사 비교 단계에서 결과를 통합합니다.
-- **Agentic RAG**: 검색 문서의 관련성을 평가하고, 필요하면 질의를 최대 2회 재작성하거나 웹 검색으로 근거를 보완합니다.
-- **Advanced RAG**: 국가·세그먼트 필터, BM25와 밀집 검색, RRF, 리랭킹, 컨텍스트 압축으로 시장 분석에 필요한 근거를 추출합니다.
-- **문서 기반 분석**: 기술 문서 3종과 시장 보고서 3종의 지정 페이지를 활용하며, 인제스트 시 총 200페이지 제한을 검사합니다.
-- **일관된 투자 판정**: LLM이 11개 항목을 채점하고 코드가 가중 점수 합산·탈락 조건·최종 판정을 처리합니다.
-- **후보 재평가 흐름**: 보류 시 다음 후보를 평가하고, 대기열이 소진되면 재탐색합니다. 최초 탐색 포함 최대 3회, 심층 평가 최대 8개 기업으로 실행을 제한합니다.
-- **보고서 자동 생성**: SUMMARY, 분석 본문, 비교표·점수표, 실제 활용 자료의 REFERENCE를 포함한 5페이지 이내 PDF를 생성합니다.
-- **실행 기록 및 캐시**: 검색 결과와 시장 분석을 재사용하고 평가 이력·출처·로그를 저장합니다.
+- 웹 발굴 또는 시드 후보 로드, 보류 시 다음 후보·재탐색, 전체 보류·후보 없음 보고서.
+- 후보별 구조화 계획을 **worker 실행 전에** 파일과 State에 저장합니다.
+- 캐시의 국가·세그먼트·항목별 내용·실제 원문 근거를 확인합니다. 정보 부족인 관점만 재조사합니다.
+- 초기 조사 7개, 충분한 시장 캐시가 있으면 기술·업계·팀 3개, 성장 정보만 부족하면 4개로 작업이 달라집니다. 유효한 기술·시장 캐시가 모두 있으면 worker 없이 집계합니다.
+- worker는 작은 전용 입력만 받고 task_id별 결과 delta를 반환합니다. 실패한 worker가 있어도 성공 결과와 유효 캐시를 집계합니다.
+- 일시적 worker 호출 실패는 최대 1회 재시도합니다. RAG 내부 호출과 worker 재시도를 중첩하지 않습니다. 인증·설정 오류는 실행 실패로 전달합니다.
+- Groundedness·중립성·편향 통제와 구조·점수·분량 검사를 모두 통과해야 최종 보고서를 저장합니다.
+- 미달 피드백을 다음 본문·SUMMARY 생성에 전달합니다. 최초 포함 최대 3개 버전을 평가하며, 끝까지 미달하거나 Judge가 실패하면 `quality_failed`로 종료합니다.
+- 문서 발췌·원본 페이지·웹 URL·기업·출처 ID를 실행별 파일로 보존합니다. 서지 정보만으로 근거성을 판단하지 않습니다.
+- 실제 PDF의 분량 조정 후 품질을 평가하고, 통과한 같은 버전의 PDF·본문 해시를 확인해 그대로 확정합니다. 최대 5쪽, 첫 SUMMARY는 550자·반 페이지 이내, 마지막은 REFERENCE입니다.
+
+**패턴 선택과 trade-off:** 기술·시장 조사 도구를 작업 단위로 분리하기에 Orchestrator-Workers가 적합합니다. 캐시·부족 정보에 따라 실행 작업이 달라지며, Supervisor·Swarm·Agent-as-Tool을 추가하지 않습니다. 동적 결과 병합·부분 실패·근거 연결을 관리해야 하고, 품질 Judge와 개선 루프에 추가 호출 비용이 발생합니다. 로컬 모델의 안전성을 위해 임베딩·리랭커 실행은 공유 락으로 직렬화합니다.
 
 ## Tech Stack
 
-| 영역 | 기술 및 구성 |
+| 영역 | 구현 |
 |---|---|
 | Language | Python 3.11 |
-| Framework | LangGraph `StateGraph`, 조건부 라우팅, 병렬 실행 |
-| LLM / Generator | `langchain-openai`의 `ChatOpenAI`, `LLM_MODEL` 환경변수로 지정 |
-| LLM / Judge | `ChatOpenAI`, `JUDGE_MODEL` 환경변수로 지정 |
-| Structured Output | Pydantic v2 |
-| Web Search | Tavily |
-| PDF Loader | pypdf |
-| Vector Store | Chroma (`tech_docs`, `market_docs`) |
-| Embedding | `BAAI/bge-m3` — 오픈소스, 로컬 또는 Hugging Face Inference API |
-| Hybrid Search | BM25 + 밀집 검색 + RRF, 한국어 토큰화에 kiwipiepy 사용 |
-| Reranker | `BAAI/bge-reranker-v2-m3` |
-| PDF Renderer | fpdf2 + NanumGothic |
-| Test | pytest |
+| Framework | LangGraph StateGraph, Send, Overwrite, 조건부 라우팅 |
+| Generation / Judge | ChatOpenAI, `.env`의 LLM_MODEL / JUDGE_MODEL, temperature=0 |
+| Structured Output | Pydantic v2 TaskSpec·TaskResult·QualityVerdict |
+| Web | Tavily, 원자적 검색 캐시 저장 |
+| PDF / Vector Store | pypdf, Chroma tech_docs / market_docs |
+| Embedding | 오픈소스 BAAI/bge-m3, local / hf_api |
+| Market Retrieval | Kiwi BM25 + Dense + RRF + bge-reranker-v2-m3 + 문장 압축 |
+| Report | fpdf2, SUIT 정적 TTF, PDF·Markdown 공용 모델 |
+| Observability | 표준 logging, 실행별 JSON, LangSmith tracing |
+| Test | pytest, 외부 서비스 mock + 실제 LangGraph/PDF |
 
-임베딩은 동일 청크·질의로 `BAAI/bge-m3`, `Qwen/Qwen3-Embedding-0.6B`, `intfloat/multilingual-e5-large`를 비교합니다. 평가 지표는 **Hit Rate@5**와 **MRR**이며, 평가 스크립트의 측정 결과는 `outputs/embedding_eval.md`에 저장됩니다.
+기술·시장 문서 6종의 발췌본은 195쪽입니다. 인제스트는 200쪽을 넘으면 중단합니다. 기존 임베딩 비교는 BGE·Qwen3·E5를 동일 청크·질의로 평가하며 Hit Rate@5와 MRR를 [평가 결과](outputs/embedding_eval.md)에 기록합니다.
 
 ## Agents
 
-| 에이전트 | 역할 | 근거 수집 방식 |
-|---|---|---|
-| 스타트업 탐색 | 후보 발굴, 요건 검증, 유망도 정렬 | 웹 검색 |
-| 기술 요약 | 핵심 기술·제품·성능·TRL·팀 역량 분석 | Agentic RAG + 웹 검색 |
-| 시장성 평가 | 시장 규모·성장성·수요·정책 및 규제 분석 | Advanced RAG |
-| 경쟁사 비교 | 경쟁사 3~5곳 비교, 차별성·진입장벽·사업 실적 분석 | 웹 검색 + 기술·시장 분석 결과 |
-| 투자 판단 | 11개 평가 항목 채점 및 투자·보류 판정 | 분석 결과 + 평가 루브릭 |
-| 보고서 생성 | 판정에 따른 보고서 작성 및 PDF 출력 | 평가 결과 + 실제 활용 출처 |
+| 노드 | 책임 |
+|---|---|
+| discover | 웹 후보 추출·요건 검증·유망도 정렬, 시드 fallback |
+| select | 후보 선택과 후보별 분석·작업 결과 초기화 |
+| orchestrator | 필요한 관점만 TaskSpec으로 계획하고 저장 |
+| research_worker | 기업 기술·업계·팀·시장 규모·성장·수요·규제 중 한 작업 수행 |
+| synthesizer | 모든 계획 결과 검증, 기술·시장 구조화, 유효 캐시·성공 근거 보존 |
+| competitor | 경쟁사 비교·진입장벽·대상 기업 Traction |
+| judge | 11개 점수 생성, 코드의 가중합·필수 탈락·판정 |
+| report_draft | 피드백 반영 본문·SUMMARY, 분량 조정 후 검토용 PDF 생성 |
+| report_quality | 원문 대조 LLM Judge + 코드 검사 |
+| report_finalize | 통과한 동일 버전의 PDF·Markdown 저장 |
+| quality_failed | 최종 보고서 없이 초안·미달 사유 보존 후 종료 |
 
-후보 선택은 LLM을 사용하지 않는 별도 유틸리티 노드입니다. 대기열에서 후보를 선택하고 기업별 분석 상태를 초기화합니다.
+기존 `tech_summary.synthesize`와 `market_eval.synthesize`는 집계 단계에서 사용합니다. 개별 `run` 함수도 단독 분석 호환성을 위해 보존합니다.
 
-투자 판단은 다음 기준을 적용합니다.
+## State Schema
 
-- 항목별 0~10점을 가중 합산해 총 100점으로 평가합니다.
-- 총점 **70점 이상**이고 필수 탈락 조건이 없으면 **투자**, 그 외에는 **보류**입니다.
-- **창업팀 역량** 또는 **규제·정책 위험**이 3점 이하면 총점과 관계없이 보류합니다.
-- 공개 정보가 부족한 항목은 5점과 정보 부족 표시를 함께 기록하고, 보고서에 분석의 한계를 명시합니다.
+| 설계 항목 | 구현 |
+|---|---|
+| 제어 vs 페이로드 | run_id·tasks·report_version·quality_result·execution_status / 분석 결과·worker_results·파일 참조 분리 |
+| 관측성 위치 | 계획·결과·품질 사유는 파일과 LangSmith, State.log에는 짧은 주요 이력 |
+| 지속성 비용 | 원문·청크·초안은 파일에 저장, task/result는 후보마다 초기화, 평가 이력 최대 8개 |
+| 상관 | 동일 run_id를 디렉터리·manifest·로그·LangSmith metadata에 사용 |
+| 복구 | worker status·attempts·error_code, 부분 실패 보존. 중간 checkpoint 재개는 지원하지 않으며 프로세스 종료 후 새 실행과 검색 캐시 재사용 |
+| 동시성 | task_id 기준 정렬·멱등 병합, 충돌 거부. select가 Overwrite로 결과 초기화. worker는 분석·점수·캐시를 쓰지 않음 |
+| 종료 | 탐색 총 3회, 후보 최대 8개, RAG rewrite 2회, 호출 최대 2회, 보고서 개선 2회, recursion_limit=100 |
 
 ## Architecture
 
+![Orchestrator-Workers graph](docs/graph.svg)
+
 ```mermaid
 flowchart TD
-    START([START]) --> discover[스타트업 탐색]
-    discover --> queue{후보 및 실행 상한 확인}
-    queue -->|평가 가능한 후보 있음| select[후보 선택]
-    queue -->|후보 없음 · 재탐색 가능| discover
-    queue -->|탐색 또는 평가 상한 도달| report[보고서 생성]
-    select --> tech_summary[기술 요약 · Agentic RAG]
-    select --> market_eval[시장성 평가 · Advanced RAG]
-    tech_summary --> join[두 분석 완료 후 합류]
-    market_eval --> join
-    join --> competitor[경쟁사 비교]
-    competitor --> judge[투자 판단]
-    judge --> decision{투자 / 보류}
-    decision -->|투자| report
-    decision -->|보류| queue
-    report --> END([END])
+    START --> initialize --> discover
+    discover -->|후보 있음| select
+    discover -->|재탐색 가능| discover
+    discover -->|후보 없음 또는 상한| report_draft
+    select --> orchestrator
+    orchestrator -->|Send N개| research_worker
+    orchestrator -->|0개| synthesizer
+    research_worker --> synthesizer
+    synthesizer --> competitor --> judge
+    judge -->|보류, 후보 있음| select
+    judge -->|보류, 재탐색| discover
+    judge -->|투자 또는 종료 상한| report_draft
+    report_draft --> report_quality
+    report_quality -->|미달, 개선 가능| report_draft
+    report_quality -->|통과| report_finalize --> END
+    report_quality -->|미달 상한 또는 복구 불가| quality_failed --> END
 ```
 
-후보·실행 상한 확인과 투자·보류 분기는 조건부 라우팅으로 처리합니다. 기술 요약과 시장성 평가가 모두 완료되어야 경쟁사 비교를 실행합니다.
-
-기술 요약의 Agentic RAG는 `검색 → 관련성 평가 → 응답 생성`을 기본 흐름으로 사용합니다. 관련 문서가 부족하면 `질의 재작성 → 재검색`을 최대 2회 수행하고, 이후 웹 검색으로 보완합니다. 기업 고유 정보는 웹 근거로, 업계 기술 수준과 상용화 기준은 RAG 문서로 보완합니다.
-
-시장성 평가의 Advanced RAG는 `국가·세그먼트 필터 → BM25 + 밀집 검색 → RRF → 리랭킹 → 문장 압축` 순서로 동작합니다. 동일 국가·세그먼트의 분석은 캐시로 재사용합니다.
-
-보고서는 두 경로로 생성합니다.
-
-- **투자 추천**: SUMMARY → 기업 및 사업 개요 → 시장 및 경쟁 분석 → 기업 역량 및 리스크 → 종합 투자 평가 → REFERENCE
-- **전체 보류**: SUMMARY → 평가 대상 및 선정 과정 → 후보별 평가 결과 비교 → 주요 보류 사유 및 시장 환경 → 분석의 한계 → REFERENCE
+실제 실행 그래프의 Mermaid도 각 실행 디렉터리의 `graph.mmd`에 저장됩니다.
 
 ## Directory Structure
 
 ```text
-.
-├── app.py                      # 실행 진입점
-├── config.py                   # 환경변수, 경로, 실행 상한
-├── state.py                    # 공유 State 및 reducer
-├── schemas.py                  # Pydantic 데이터 스키마
-├── graph/                      # 그래프 구성 및 조건부 라우팅
-├── agents/                     # 6개 에이전트 및 후보 선택 노드
-├── rag/                        # 인제스트, 임베딩, Agentic / Advanced RAG
-├── tools/                      # LLM, 웹 검색, 출처 처리
-├── report/                     # 보고서 템플릿 및 PDF 조판
-├── prompts/                    # 에이전트별 프롬프트
-├── config/
-│   ├── docs.yaml               # 문서 메타데이터 및 사용 페이지
-│   └── rubric.yaml             # 평가 항목, 가중치, 탈락 조건
-├── data/
-│   ├── docs/tech/              # 기술 문서
-│   ├── docs/market/            # 시장 보고서
-│   ├── seed_candidates.json    # 시드 후보
-│   ├── eval/                   # 임베딩 평가셋
-│   └── vectorstore/            # Chroma 저장소
-├── eval/                       # 임베딩 성능 평가
-├── assets/fonts/               # 한글 폰트 및 라이선스
-├── docs/                       # 설계 및 작업 분배 문서
-├── outputs/                    # 보고서, 평가 결과, 로그, 캐시
-├── tests/                      # 채점, 라우팅, 출처 처리 테스트
-├── requirements.txt
-├── .env.example
-└── README.md
+app.py / config.py / schemas.py / state.py
+agents/         # 계획·worker·집계·분석·판정·보고서·품질
+rag/            # 기존 Agentic / Advanced RAG·인제스트·임베딩
+report/         # 공용 본문 모델·PDF·Markdown
+prompts/        # 분석·보고서·독립 품질 평가
+config/         # docs.yaml·rubric.yaml
+tools/         # LLM·웹·출처·근거 캡처·원자적 artifact·오류 분류
+data/          # 6개 PDF·시드·평가셋·벡터스토어
+docs/          # State 설계·그래프·이전 실습 기록
+outputs/runs/  # run_id별 검토·최종 산출물 (gitignore)
+tests/         # 회귀·동적 Send·부분 실패·품질 루프·PDF
 ```
 
 ## Usage
 
-1. Python 3.11 환경에서 저장소 루트에 가상환경을 만들고 활성화합니다.
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cp .env.example .env
+# OPENAI_API_KEY, TAVILY_API_KEY, LLM_MODEL, JUDGE_MODEL 설정
+python -m rag.ingest
+python app.py --seed-only
+```
 
-   ```bash
-   python -m venv .venv
-   ```
+- 기본 `python app.py`는 웹 발굴을 사용합니다. `--seed-only`도 기업 조사·채점·품질 평가의 실제 LLM 호출과 웹 검색을 사용합니다.
+- `--no-cache`로 웹 검색 캐시를 무시합니다. `--stub`은 동적 그래프의 모의 라우팅이며 PDF 생성·실제 품질 검증 증거가 아닙니다.
+- `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT=energy-orchestrator-workers`로 tracing을 설정합니다. 추적은 run_id와 연결됩니다. false면 추적을 끕니다.
+- hf_api 임베딩은 HF_TOKEN이 필요합니다. 문서를 바꾸면 `python -m rag.ingest --rebuild`로 갱신합니다.
+- 품질 미달은 종료 코드 1이며, 초안과 품질 판정에서 수정 사유를 확인합니다. 판정 기준을 낮춰 통과시키지 않습니다.
 
-   macOS / Linux:
-
-   ```bash
-   source .venv/bin/activate
-   ```
-
-   Windows PowerShell:
-
-   ```powershell
-   .venv\Scripts\Activate.ps1
-   ```
-
-2. 의존성을 설치합니다.
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. `.env.example`을 `.env`로 복사하고 API 키와 모델명을 입력합니다.
-
-   ```dotenv
-   OPENAI_API_KEY=your_openai_api_key
-   TAVILY_API_KEY=your_tavily_api_key
-   LLM_MODEL=your_generation_model
-   JUDGE_MODEL=your_judge_model
-   EMBEDDING_BACKEND=local
-   ```
-
-   `EMBEDDING_BACKEND=hf_api`를 사용할 때는 `HF_TOKEN`도 설정합니다. 생성·평가 모델은 `temperature=0`으로 호출합니다. `.env`는 버전 관리에 포함하지 않습니다.
-
-4. `config/docs.yaml`에 지정된 PDF를 `data/docs/tech/`, `data/docs/market/`에 준비하고 벡터스토어를 생성합니다.
-
-   ```bash
-   python -m rag.ingest
-   ```
-
-   지정 페이지 합계가 200페이지를 초과하면 인제스트를 중단합니다. 문서나 페이지 범위를 변경한 경우 `python -m rag.ingest --rebuild`로 다시 생성합니다.
-
-5. 전체 평가를 실행합니다.
-
-   ```bash
-   python app.py
-   ```
-
-   웹 발굴 대신 시드 후보를 사용하려면 `python app.py --seed-only`, 검색 캐시를 무시하려면 `python app.py --no-cache`를 사용합니다. 시드 모드에서도 기업 분석을 위한 LLM 호출과 웹 검색은 사용합니다.
-
-실행 결과는 `outputs/`에 저장됩니다.
+각 `outputs/runs/{run_id}/`에는 다음 파일이 저장됩니다.
 
 | 파일 | 내용 |
 |---|---|
-| `report_YYYYMMDD_HHMM.pdf` | 최종 투자 평가 보고서 |
-| `report_YYYYMMDD_HHMM.md` | 검토용 보고서 원문 |
-| `run_log.json` | 평가 이력, 점수, 판정, 출처, 실행 로그 |
-| `discovery_round{n}.json` | 탐색 회차별 후보 발굴 결과 |
-| `graph.mmd` | 전체 그래프의 Mermaid 표현 |
-| `agentic_rag.md` | Agentic RAG 서브그래프의 Mermaid 표현 |
-
-테스트와 임베딩 평가는 다음 명령으로 실행합니다.
+| manifest.json / graph.mmd | 모델·입력 hash·캐시 여부·run_id / 실행 그래프 |
+| plans/*.json | 기업별 저장된 조사 계획 |
+| workers/*.json / analyses/*.json | 작업별 근거·결과 / 후보 집계 |
+| evidence/*.json / evidence_index.json | 실제 출처의 웹 본문·문서 발췌·기업·원본 페이지 |
+| draft_vN.json / preview_vN.pdf / preview_vN.md | 검토할 같은 버전의 전체 보고서 |
+| quality_vN.json | 항목별 pass/fail·이유·수정 피드백 |
+| report_vN.pdf / report_vN.md | 모든 품질 검사를 통과한 최종 산출물 |
+| run_log.json / failure.json | 정상·품질 실패의 최종 State / 실행 예외의 안전한 오류 유형 |
 
 ```bash
-pytest
-python -m eval.embedding_eval
-python -m rag.agentic_rag  # 기술 요약 Agentic RAG 서브그래프 구조를 outputs/agentic_rag.md로 저장
+pytest -q
+python -m rag.ingest --check-only
+python -m eval.embedding_eval --validate-only
 ```
 
-테스트는 점수 계산·70점 경계·필수 탈락 조건, 후보 반복·재탐색·종료 라우팅, REFERENCE 형식·중복 제거·기업별 필터를 검증합니다.
-
-참고: 웹 검색 결과에 이름이 같은 다른 분야 기업의 자료가 섞일 수 있다. 홈페이지 도메인·기업명·전력 산업 용어로 1차 필터링하고 프롬프트에서 동명 기업 자료 사용을 금지하지만, 전력 관련 용어를 함께 쓰는 동명 기업은 완전히 걸러지지 않을 수 있다.
+웹 동명 기업 필터는 도메인·기업명·전력 산업 용어를 사용합니다. 동명 기업 혼입이나 공개 자료의 부족이 완전히 제거되는 것은 아니며, 품질 평가에서 원문과 기업 연결을 추가 검토합니다.
 
 ## Contributors
 
-담당 구분은 [작업 분배표](docs/WORK_DIVISION.md)를 따릅니다.
+기존 RAG 실습의 개인별 담당 역할:
 
-- **제유진**: 공통 스키마·State, LangGraph 그래프 및 라우팅, 스타트업 탐색, 실행 스크립트, 통합 및 README
-- **윤서정**: RAG 문서 인제스트, 오픈소스 임베딩, Advanced RAG, 시장성 평가, 임베딩 성능 평가
-- **장주호**: Agentic RAG 서브그래프, 기술 요약, 경쟁사 비교, 기술 문서 평가셋
-- **이상윤**: 투자 판단 루브릭 및 채점, 보고서 생성, PDF 조판, REFERENCE 처리
+- **제유진:** 공통 스키마·State, 그래프·라우팅, 탐색, 실행·통합.
+- **윤서정:** 인제스트·오픈소스 임베딩·Advanced RAG·시장성·임베딩 평가.
+- **장주호:** Agentic RAG·기술 요약·경쟁사 비교·기술 평가셋.
+- **이상윤:** 투자 루브릭·채점·보고서·PDF·REFERENCE.
+
+현재 패턴 전환에서는 계획·동적 배분·집계, 근거 파일 연결, 품질 평가·개선 루프, 실행별 관측성과 검증을 추가했습니다.

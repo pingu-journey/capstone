@@ -15,6 +15,8 @@ from schemas import SEGMENT_KO
 from tools.llm import get_judge_llm, get_llm
 from tools.references import make_doc_ref, make_web_ref
 from tools.web_search import search
+from tools.evidence import record
+from tools.services import check_service_error
 
 
 PROMPT_DIR = ROOT / "prompts"
@@ -59,6 +61,7 @@ DEFAULT_WEB_QUERIES = [
 
 
 class RagState(TypedDict, total=False):
+    call_attempts: int
     question: str
     company: str
     query: str
@@ -157,7 +160,8 @@ def _tech_docs_available() -> bool:
     try:
         _get_embedder()
         return _get_tech_collection().count() > 0
-    except Exception:
+    except Exception as error:
+        check_service_error(error)
         return False
 
 
@@ -176,16 +180,17 @@ def retrieve(state: RagState) -> dict:
     }
 
 
-def _grade_docs(question: str, docs: list[dict]) -> list[str] | None:
+def _grade_docs(question: str, docs: list[dict], attempts: int = 2) -> list[str] | None:
     chunks = "\n\n".join(f"[{i}] {d['text']}" for i, d in enumerate(docs, start=1))
     prompt = _prompt("agentic_rag_grade", question=question, chunks=chunks)
     llm = get_judge_llm().with_structured_output(GradeOutput)
-    for _ in range(2):  # 검증 실패 시 1회 재시도
+    for _ in range(attempts):
         try:
             verdicts = llm.invoke(prompt).verdicts
             if len(verdicts) == len(docs):
                 return verdicts
-        except Exception:
+        except Exception as error:
+            check_service_error(error)
             continue
     return None
 
@@ -196,7 +201,7 @@ def grade(state: RagState) -> dict:
     relevant = list(state.get("relevant_docs") or [])
     log = []
     if new_docs:
-        verdicts = _grade_docs(state["question"], new_docs)
+        verdicts = _grade_docs(state["question"], new_docs, state.get("call_attempts", 2))
         if verdicts is None:
             verdicts = ["no"] * len(new_docs)
             log.append(f"{LOG_PREFIX} grade failed → treated as irrelevant")
@@ -221,7 +226,8 @@ def rewrite(state: RagState) -> dict:
     prompt = _prompt("agentic_rag_rewrite", question=state["question"], query=state["query"])
     try:
         query = get_llm().invoke(prompt).content.strip() or state["query"]
-    except Exception:
+    except Exception as error:
+        check_service_error(error)
         query = state["query"]
     count = state.get("rewrite_count", 0) + 1
     return {
@@ -261,7 +267,9 @@ def _format_evidence(evidence: list[tuple[str, dict]]) -> str:
 
 def _to_reference(kind: str, item: dict, state: RagState) -> dict:
     if kind == "doc":
-        return make_doc_ref(item["doc_id"], state["startup"], USED_BY)
+        ref = make_doc_ref(item["doc_id"], state["startup"], USED_BY)
+        record(ref, item["text"], item["page"])
+        return ref
     return make_web_ref(item, state["startup"], USED_BY, state["run_date"])
 
 
@@ -292,19 +300,20 @@ def generate(state: RagState) -> dict:
         )
         llm = get_llm().with_structured_output(GenerateOutput)
         output = None
-        for _ in range(2):  # 검증 실패 시 1회 재시도
+        for _ in range(state.get("call_attempts", 2)):
             try:
                 output = llm.invoke(prompt)
                 break
-            except Exception:
+            except Exception as error:
+                check_service_error(error)
                 continue
         answer = output.answer if output else INSUFFICIENT
         # 본문 [n] 인용이 기준, used_sources는 보조
         cited = {int(n) for n in re.findall(r"\[(\d+)\]", answer)}
         cited |= set(output.used_sources if output else [])
         used = sorted(n for n in cited if 1 <= n <= len(evidence))
-        if not used:  # 비었거나 파싱 실패 → 넘긴 근거 전부
-            used = list(range(1, len(evidence) + 1))
+        if not used:
+            answer = INSUFFICIENT
 
     sources, seen = [], set()
     for n in used:
@@ -354,10 +363,12 @@ def run(
     run_date: str | None = None,
     web_queries: list[str] | None = None,
     entity: dict | None = None,
+    call_attempts: int = 2,
 ) -> dict:
     use_rag = _tech_docs_available()
     log = [] if use_rag else [f"{LOG_PREFIX} tech_docs unavailable → web only"]
     final = build_graph().invoke({
+        "call_attempts": call_attempts,
         "question": question,
         "company": company,
         "startup": startup,

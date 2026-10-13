@@ -16,6 +16,7 @@ venv/
 # Generated data
 data/vectorstore/
 outputs/cache/
+outputs/runs/
 !outputs/.gitkeep
 
 # 환경 스캐폴딩

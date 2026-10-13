@@ -7,6 +7,7 @@ from schemas import SEGMENT_KO, TeamInfo, TechSummary
 from tools.llm import get_llm
 from tools.references import make_web_ref
 from tools.web_search import search
+from tools.services import check_service_error
 
 
 USED_BY = "tech_summary"
@@ -104,6 +105,14 @@ def run(state: dict) -> dict:
     )
     team_results, team_log = _team_search(company, entity)
 
+    return synthesize(startup, run_date, tech, industry, team_results, team_log)
+
+
+def synthesize(startup, run_date, tech, industry, team_results, team_log=()):
+    """Reuse the existing structured assembly after workers have collected evidence."""
+    name = startup["name"]
+    segment_ko = SEGMENT_KO[startup["segment"]]
+
     prompt = PROMPT_PATH.read_text(encoding="utf-8").format(
         company_info=(
             f"{name} / 국가 {startup['country']} / 단계 {startup['stage']} / "
@@ -122,7 +131,8 @@ def run(state: dict) -> dict:
         try:
             draft = llm.invoke(prompt)
             break
-        except Exception:
+        except Exception as error:
+            check_service_error(error)
             continue
     failed = draft is None
     draft = draft or _fallback()
@@ -133,8 +143,6 @@ def run(state: dict) -> dict:
     insufficient = summary.insufficient = _insufficient(summary)
 
     used = [n for n in draft.used_team_sources if 1 <= n <= len(team_results)]
-    if not used:  # 비었거나 실패 → 팀 검색 결과 전부
-        used = list(range(1, len(team_results) + 1))
     references, seen = [], set()
     for ref in tech["sources"] + industry["sources"] + [
         make_web_ref(team_results[n - 1], name, USED_BY, run_date) for n in used
@@ -147,7 +155,7 @@ def run(state: dict) -> dict:
     return {
         "tech_summary": summary.model_dump(),
         "references": references,
-        "log": tech["log"] + industry["log"] + team_log + [
+        "log": tech["log"] + industry["log"] + list(team_log) + [
             f"[tech_summary] {name} {status}, 부족 {insufficient or '없음'}, 근거 {len(references)}건"
         ],
     }

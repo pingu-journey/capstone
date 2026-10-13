@@ -7,6 +7,7 @@ from functools import lru_cache
 import numpy as np
 
 from config import ROOT  # config가 프로젝트의 .env를 로드
+from tools.services import ConfigurationError
 
 
 MODEL_NAME = "BAAI/bge-m3"
@@ -79,7 +80,7 @@ class Embedder:
 
             token = os.getenv("HF_TOKEN")
             if not token:
-                raise ValueError("hf_api 사용 시 .env에 HF_TOKEN이 필요합니다.")
+                raise ConfigurationError("hf_api 사용 시 .env에 HF_TOKEN이 필요합니다.")
 
             self._client = InferenceClient(
                 model=os.getenv("HF_EMBEDDING_ENDPOINT") or MODEL_NAME,
@@ -106,7 +107,7 @@ def _get_embedder(backend: str) -> Embedder:
 def get_embedder() -> Embedder:
     backend = os.getenv("EMBEDDING_BACKEND", "local").strip().lower()
     if backend not in {"local", "hf_api"}:
-        raise ValueError(
+        raise ConfigurationError(
             "EMBEDDING_BACKEND는 local 또는 hf_api여야 합니다."
         )
     return _get_embedder(backend)

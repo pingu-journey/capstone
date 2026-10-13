@@ -5,8 +5,11 @@ from functools import lru_cache
 
 from rank_bm25 import BM25Okapi
 
-from rag.embeddings import get_embedder
+from rag.embeddings import get_embedder, _MODEL_LOCK
 from rag.ingest import SEGMENTS, get_collection
+from threading import RLock
+
+_SEARCH_LOCK = RLock()
 
 
 COLLECTION_NAME = "market_docs"
@@ -149,10 +152,11 @@ def _rrf_merge(dense_results: list[dict], bm25_results: list[dict]) -> list[dict
 def _rerank(query: str, results: list[dict], top_k: int) -> list[dict]:
     if not results:
         return []
-    scores = _get_reranker().predict(
-        [[query, item["text"]] for item in results],
-        show_progress_bar=False,
-    )
+    with _MODEL_LOCK:
+        scores = _get_reranker().predict(
+            [[query, item["text"]] for item in results],
+            show_progress_bar=False,
+        )
     reranked = [
         {**item, "rerank_score": float(score)}
         for item, score in zip(results, scores)
@@ -198,6 +202,11 @@ def search(
     segment: str,
     k: int = 5,
 ) -> list[dict]:
+    with _SEARCH_LOCK:
+        return _search(query, country, segment, k)
+
+
+def _search(query, country, segment, k):
     """필터·하이브리드 검색·RRF·리랭킹·압축 결과를 반환한다."""
     if not query.strip():
         raise ValueError("query는 비어 있지 않아야 합니다.")

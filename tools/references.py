@@ -1,6 +1,7 @@
 """출처 생성 및 보고서용 필터·정렬. 반환값은 State에 저장할 dict다."""
 
 import logging
+import re
 from datetime import date, datetime
 from email.utils import parsedate_to_datetime
 from hashlib import sha1
@@ -14,6 +15,39 @@ from schemas import Reference
 
 
 logger = logging.getLogger(__name__)
+
+
+def unsupported_numbers(text: str, evidence: list[dict], *, tech_summary=None, assessment_source_ids=()) -> set[str]:
+    """Check external numbers; exempt only cited, State-matching TRL assessment spans.
+
+    Amount/unit conversions remain disallowed. The Judge still checks whether the
+    excerpts support the assessment rationale and the claim's scope and units.
+    """
+    cited = {source.strip() for group in re.findall(r"\[출처:\s*([^\]]+)\]", text)
+             for source in group.split(",")}
+    claim = re.sub(r"\[출처:[^\]]+\]", "", text)
+    mismatched = set()
+    if tech_summary is not None:
+        rationale = tech_summary.get("trl_rationale", "")
+        grounded_assessment = (bool(rationale.strip()) and "정보 부족" not in rationale
+                              and "TRL" not in tech_summary.get("insufficient", [])
+                              and bool(cited & set(assessment_source_ids) &
+                                       {item["source_id"] for item in evidence if item.get("text")}))
+        def assessment(match):
+            number = match.group("number")
+            if number != str(tech_summary["trl"]):
+                mismatched.add(number)
+            elif grounded_assessment:
+                # Remove this occurrence, never whitelist the value in other claims.
+                start, end = match.span("number")
+                return match.group()[:start - match.start()] + match.group()[end - match.start():]
+            return match.group()
+        claim = re.sub(r"\bTRL\s*(?P<number>\d+(?:\.\d+)?)\s*(?:로|으로)?\s*(?:평가|판단|추정)",
+                       assessment, claim, flags=re.IGNORECASE)
+    def numbers(value):
+        return set(re.findall(r"\d+(?:\.\d+)?", re.sub(r"(?<=\d),(?=\d)", "", value)))
+    excerpts = " ".join(item["text"] for item in evidence if item["source_id"] in cited)
+    return (numbers(claim) - numbers(excerpts)) | mismatched
 
 DOCS_PATH = ROOT / "config" / "docs.yaml"
 REFERENCE_GROUPS = {
@@ -94,7 +128,7 @@ def make_web_ref(result: dict, startup: str, used_by: str, run_date: str) -> dic
         raise ValueError("웹 출처 URL은 HTTP(S) 주소여야 합니다.")
     site_name = result.get("site_name") or parsed.hostname.removeprefix("www.")
     source_id = _source_id(url)
-    return Reference(
+    reference = Reference(
         id=source_id,
         startup=startup,
         used_by=used_by,
@@ -105,6 +139,10 @@ def make_web_ref(result: dict, startup: str, used_by: str, run_date: str) -> dic
         venue=site_name,
         url=url,
     ).model_dump()
+    from tools.evidence import record
+
+    record(reference, result.get("content") or "")
+    return reference
 
 
 def format_reference(r: Reference | dict) -> str:

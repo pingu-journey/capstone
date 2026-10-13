@@ -1,0 +1,31 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	discover(discover)
+	select(select)
+	tech_summary(tech_summary)
+	market_eval(market_eval)
+	competitor(competitor)
+	judge(judge)
+	report(report)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> discover;
+	competitor --> judge;
+	discover -.-> report;
+	discover -.-> select;
+	judge -.-> discover;
+	judge -.-> report;
+	judge -.-> select;
+	market_eval --> competitor;
+	select --> market_eval;
+	select --> tech_summary;
+	tech_summary --> competitor;
+	report --> __end__;
+	discover -.-> discover;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

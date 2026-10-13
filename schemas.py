@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 Segment = Literal[
@@ -109,3 +109,50 @@ class Reference(BaseModel):
     pages: str | None = None
     url: str | None = None
     used_by: str
+
+
+TaskKind = Literal["company_tech", "industry", "team", "market_size", "growth", "demand", "regulation"]
+
+
+class OrchestrationModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True, str_strip_whitespace=True)
+
+
+class TaskSpec(OrchestrationModel):
+    task_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")
+    kind: TaskKind
+    query: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    target_fields: list[str] = Field(min_length=1)
+
+
+class TaskResult(OrchestrationModel):
+    task_id: str
+    status: Literal["success", "insufficient", "failed"]
+    findings: str
+    source_ids: list[str]
+    evidence_ref: str | None
+    attempts: int = Field(strict=True, ge=1, le=2)
+    error_code: str | None = None
+
+
+class QualityCheck(OrchestrationModel):
+    passed: bool = Field(strict=True)
+    reason: str = Field(min_length=1)
+    feedback: list[str]
+
+
+class QualityVerdict(OrchestrationModel):
+    report_version: int = Field(strict=True, ge=1, le=3)
+    groundedness: QualityCheck
+    neutrality: QualityCheck
+    bias: QualityCheck
+    structure_passed: bool = Field(strict=True)
+    structure_reasons: list[str]
+    recoverable: bool = Field(strict=True)
+
+    @property
+    def passed(self) -> bool:
+        return self.structure_passed and all(
+            check.passed for check in (self.groundedness, self.neutrality, self.bias)
+        )

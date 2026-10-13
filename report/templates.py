@@ -1,7 +1,7 @@
 """보고서 경로별 목차·입력·예산과 PDF/Markdown 공용 본문 모델."""
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,23 +15,26 @@ class ReportModel(BaseModel):
 
 class Block(ReportModel):
     subtitle: str = Field(min_length=1)
-    text: str = Field(min_length=1)
+    text: str = Field(min_length=1, description="요청 target_chars를 지키는 짧은 한국어 본문. 2문장 정도로 핵심 근거와 한계를 쓴다.")
+    source_ids: list[str] = Field(default_factory=list, description="이 블록의 실제 주장을 지지하는 원문 source_id만 선택한다.")
 
 
 class ChapterDraft(ReportModel):
-    blocks: list[Block] = Field(min_length=1)
+    blocks: list[Block] = Field(min_length=1, max_length=3)
 
 
 class InvestmentSummary(ReportModel):
-    conclusion: str = Field(min_length=1)
-    investment_points: list[str] = Field(min_length=3, max_length=3)
-    risks: list[str] = Field(min_length=2, max_length=2)
+    conclusion: str = Field(min_length=1, max_length=100)
+    investment_points: list[Annotated[str, Field(max_length=70)]] = Field(min_length=3, max_length=3)
+    risks: list[Annotated[str, Field(max_length=70)]] = Field(min_length=2, max_length=2)
+    source_ids: list[str] = Field(default_factory=list, max_length=5)
 
 
 class HoldSummary(ReportModel):
     conclusion: str = Field(min_length=1)
     candidate_count: int = Field(strict=True, ge=0)
     common_reasons: list[str] = Field(min_length=1)
+    source_ids: list[str] = Field(default_factory=list)
 
 
 class Table(ReportModel):
@@ -41,6 +44,8 @@ class Table(ReportModel):
 
 
 class Chapter(ChapterDraft):
+    # Code adds a mandatory limitations block after the bounded LLM draft.
+    blocks: list[Block] = Field(min_length=1)
     number: int
     title: str
     char_budget: int
