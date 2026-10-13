@@ -7,7 +7,7 @@ from pathlib import Path
 from fpdf import FPDF
 
 from config import INVEST_THRESHOLD, ROOT
-from report.templates import ReportDocument, SUMMARY_BUDGET, Table
+from report.templates import ReportDocument, Table
 from tools.references import REFERENCE_GROUPS, format_reference
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ LINE = (218, 218, 221)
 WHITE = (255, 255, 255)
 MARGIN = 15
 WIDTH = 180
-MAX_PAGES = 5
+MAX_PAGES = 10
 
 
 class ReportLayoutError(ValueError):
@@ -132,8 +132,6 @@ class _ReportPDF(FPDF):
         self.line_text(f"작성일 {report.run_date}   |   판정: {report.decision}", MARGIN + 2,
                        MARGIN + height - 10, WIDTH - 4, 6, 9, color=MUTED)
         self.set_y(MARGIN + height + 4)
-        if len(report.summary) > SUMMARY_BUDGET:
-            raise ReportLayoutError("SUMMARY가 550자를 초과합니다.")
         lines = self.lines(report.summary, WIDTH - 12, self.body_size)
         height = 17 + len(lines) * self.body_line
         bottom = self.y + height
@@ -276,10 +274,10 @@ def render_pdf(report: ReportDocument, *, compact: bool = False) -> RenderedPDF:
 
 
 def write_pdf(report: ReportDocument, path: str | Path, *, compact: bool = False) -> Path:
-    """이미 생성된 보고서의 단독 출력. 5페이지 초과 파일은 쓰지 않는다."""
+    """이미 생성된 보고서의 단독 출력. 과제의 10페이지 상한 초과 파일은 쓰지 않는다."""
     result = render_pdf(report, compact=compact)
     if result.page_count > MAX_PAGES:
-        raise ReportTooLongError("보고서가 REFERENCE 포함 5페이지를 초과합니다.")
+        raise ReportTooLongError(f"보고서가 REFERENCE 포함 {MAX_PAGES}페이지를 초과합니다.")
     path = Path(path)
     if path.suffix.lower() != ".pdf":
         raise ValueError("PDF 산출물 경로는 .pdf여야 합니다.")

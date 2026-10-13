@@ -6,6 +6,7 @@ from typing import Literal, Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 Route = Literal["investment", "hold"]
+# Writing target only; acceptance uses the rendered SUMMARY half-page height.
 SUMMARY_BUDGET = 550
 
 
@@ -96,7 +97,7 @@ TEMPLATES = {
 
 
 def chapter_budget(template: ChapterTemplate, reduction: int = 0) -> int:
-    """다음 PDF 단계의 최대 두 번, 회당 20% 축소를 위한 동일 예산 함수."""
+    """PDF가 10쪽을 넘을 때 재작성 길이를 안내한다. 장별 품질 상한은 아니다."""
     if type(reduction) is not int or reduction not in (0, 1, 2):
         raise ValueError("본문 예산 축소 횟수는 0~2여야 합니다.")
     return template.char_budget * 4**reduction // 5**reduction

@@ -20,7 +20,7 @@ from report.templates import (
     SUMMARY_BUDGET, TEMPLATES, Block, Chapter, ChapterDraft, HoldSummary,
     InvestmentSummary, ReportDocument, Table, blocks_length, chapter_budget,
 )
-from schemas import Candidate, CompetitorAnalysis, EvalRecord, ItemScore, MarketAnalysis, SEGMENT_KO, TechSummary
+from schemas import Candidate, CompetitorAnalysis, EvalRecord, ItemScore, MarketAnalysis, SEGMENT_KO, TechSummary, ReportIssue
 from tools.llm import get_llm
 from tools.references import filter_references, group_references, unsupported_numbers
 from tools.artifacts import read_json, run_dir, write_json
@@ -234,89 +234,200 @@ def _summary_text(draft, payload, source_ids):
         text = draft.conclusion + "\n공통 보류 사유: " + "; ".join(draft.common_reasons)
     if draft.source_ids:
         text += "\n[출처: " + ", ".join(dict.fromkeys(draft.source_ids)) + "]"
-    if len(text) > SUMMARY_BUDGET:
-        raise ReportValidationError("SUMMARY가 550자를 초과합니다.")
+    if re.search(r"(?:무조건|반드시)\s*(?:투자|추천)|최고의 기술|압도적(?:인)?\s*우위|위험이 전혀 없", text):
+        raise ReportValidationError("SUMMARY 홍보성·무조건적 추천 표현을 삭제하세요.")
     _citations(text, source_ids)
     return text
 
 
-def build_report(state, *, reduction: int = 0) -> ReportDocument:
-    """State를 변경하지 않고 검증된 공용 보고서 데이터를 생성한다. 파일은 쓰지 않는다."""
-    budgets = [chapter_budget(template, reduction) for template in TEMPLATES["investment"]]
+def block_issues(state, route, chapter, index, block, evidence, source_ids, budget=None):
+    """Locate deterministic failures without globally banning a numeric value."""
+    text = block.subtitle + "\n" + block.text
+    cited = {source.strip() for group in re.findall(r"\[출처:\s*([^\]]+)\]", text)
+             for source in group.split(",")}
+    ids = sorted(cited | set(block.source_ids))
+    issues = []
+    def add(kind, reason, numbers=()):
+        issues.append(ReportIssue(chapter=chapter, block=index, kind=kind, text=block.text,
+                                  source_ids=ids, numbers=sorted(numbers), reason=reason).model_dump())
+    if (cited | set(block.source_ids)) - source_ids:
+        add("citation", "제공되지 않은 인용 출처 ID를 삭제하세요.")
+    factual = (route == "investment" and chapter <= 3) or (route == "hold" and chapter == 3)
+    if factual:
+        missing = unsupported_numbers(text, evidence, **_numeric_assessment(state, route, chapter))
+        if missing:
+            add("numeric", "인용 발췌에 없는 수치: " + ", ".join(sorted(missing)) +
+                ". 해당 주장을 삭제하거나 공개 정보 부족으로 표시하세요.", missing)
+    if re.search(r"(?:무조건|반드시)\s*(?:투자|추천)|최고의 기술|압도적(?:인)?\s*우위|위험이 전혀 없", text):
+        add("neutrality", "홍보성·무조건적 추천 표현을 삭제하고 판단을 유보하세요.")
+    return issues
+
+
+def _fallback_block():
+    return Block(subtitle="근거 확인 한계", text="공개 정보 부족으로 해당 주장을 제외했다. 자료의 한계로 추가 확인이 필요하다.")
+
+
+def _repair_block(state, route, number, index, block, issues, payload, evidence, source_ids, budget, repair_log, *, quality=False, force_fallback=False):
+    request = {**payload, "operation": "repair_block", "max_blocks": 1,
+               "previous_block": block.model_dump(), "violations": issues,
+               "cited_evidence": [item for item in evidence if item["source_id"] in
+                                  {source for issue in issues for source in issue.get("source_ids", [])}],
+               "char_budget": budget, "target_chars": min(payload["target_chars"], budget),
+               "previous_char_count": blocks_length([block]),
+               "retry_reason": "; ".join(item["reason"] for item in issues)}
+    if any(item["kind"] == "length" for item in issues):
+        request["target_chars"] = int(request["target_chars"] * 0.7)
+    repaired = None
+    after = []
+    if not force_fallback:
+        try:
+            result = _invoke(ChapterDraft, "report_chapter.md", request)
+            if len(result.blocks) != 1:
+                raise ReportValidationError("수정 응답은 해당 블록 하나만 반환해야 합니다.")
+            repaired = result.blocks[0]
+            if repaired.source_ids and "[출처:" not in repaired.text:
+                repaired.text += " [출처: " + ", ".join(dict.fromkeys(repaired.source_ids)) + "]"
+            after = block_issues(state, route, number, index, repaired, evidence, source_ids, budget)
+        except ReportValidationError:
+            repaired = None
+    if repaired is None or after:
+        repaired = _fallback_block()
+        action = "fallback"
+    else:
+        action = "repaired"
+    repair_log.append({"chapter": number, "block": index, "action": action,
+                       "quality_repair": quality, "issues": issues, "repair_issues": after,
+                       "before": block.model_dump(), "after": repaired.model_dump()})
+    return repaired
+
+
+def _previous_report(state, route, title, total, decision):
+    if not state.get("quality_result") or not state.get("report_draft_ref"):
+        return None
+    artifact = read_json(state["report_draft_ref"])
+    if artifact["run_id"] != state["run_id"] or artifact["report_version"] != state["report_version"]:
+        raise ReportValidationError("수정 대상의 실행·버전이 일치하지 않습니다.")
+    if state["quality_result"]["report_version"] != state["report_version"]:
+        raise ReportValidationError("수정 피드백 버전이 일치하지 않습니다.")
+    if "report" not in artifact:
+        return None
+    previous = ReportDocument.model_validate(artifact["report"])
+    if (previous.route != route or previous.run_date != state["run_date"] or previous.title != title
+            or previous.total_score != total or previous.decision != decision):
+        raise ReportValidationError("수정 대상의 경로·기준일이 일치하지 않습니다.")
+    return artifact
+
+
+def _summary_numbers(draft, summary_input, evidence):
+    if not isinstance(draft, InvestmentSummary):
+        return set()  # HoldSummary is compared exactly with frozen State history.
+    external = "\n".join([draft.conclusion.removeprefix(summary_input["required_opening"]),
+                           *draft.investment_points, *draft.risks])
+    if draft.source_ids:
+        external += " [출처: " + ", ".join(draft.source_ids) + "]"
+    return unsupported_numbers(external, evidence)
+
+
+def _fallback_summary(model, payload):
+    if model is HoldSummary:
+        return HoldSummary(conclusion=payload["required_opening"], candidate_count=payload["candidate_count"],
+                           common_reasons=payload["expected_common_reasons"])
+    return InvestmentSummary(conclusion=payload["required_opening"],
+        investment_points=["기술 평가 근거는 본문과 표에 기록했다.", "시장 평가 근거는 본문과 표에 기록했다.", "팀 평가 근거는 본문과 표에 기록했다."],
+        risks=["공개 정보가 부족한 항목은 추가 실사가 필요하다.", "원문으로 확인되지 않은 주장은 제외했다."])
+
+
+def build_report(state, *, reduction: int = 0, repair_log=None) -> ReportDocument:
+    """Preserve healthy blocks; repair rejected blocks once, then remove their claims."""
+    repair_log = repair_log if repair_log is not None else []
     route, run_date, title, total, decision, inputs, summary_input, tables, refs, limitations = _prepare(state)
     source_ids = {ref["id"] for ref in refs}
     evidence = read_json(state["evidence_index_ref"]) if state.get("evidence_index_ref") else []
     evidence = [item for item in evidence if item["source_id"] in source_ids]
     feedback = state.get("quality_result") or {}
-    # 표/서지는 코드로 만들며 본문 글자 예산에서 제외한다. PDF 단계에서 실제 길이를 검사한다.
+    previous = _previous_report(state, route, title, total, decision)
+    if refs and len({ref["author_org"].lower() for ref in refs}) == 1:
+        limitations.append("단일 출처 기관의 자료에 의존하며 독립 검증에 한계가 있다.")
     limitation_block = Block(subtitle="분석의 한계", text="\n".join(limitations))
     chapters = []
     logger.info("보고서 본문 생성 시작: route=%s reduction=%d", route, reduction)
-    for number, (template, context, budget) in enumerate(zip(TEMPLATES[route], inputs, budgets), 1):
+    for number, (template, context) in enumerate(zip(TEMPLATES[route], inputs), 1):
+        budget = chapter_budget(template, reduction)
         reserve = blocks_length([limitation_block]) + 2 if number == 4 else 0
-        if budget <= reserve:
-            raise ReportValidationError("필수 분석 한계가 장별 글자 예산을 초과합니다.")
-        payload = {"route": route, "chapter": number, "title": template.title,
-                   "guidance": template.guidance, "char_budget": budget - reserve,
-                   "target_chars": int((budget - reserve) * 0.7),
-                   "inputs": context, "source_ids": sorted(source_ids)}
-        payload.update(max_blocks=2, sentences_per_block=2)
+        payload = {"route": route, "chapter": number, "title": template.title, "guidance": template.guidance,
+                   "char_budget": max(120, budget - reserve), "target_chars": max(120, int((budget - reserve) * 0.7)),
+                   "inputs": context, "source_ids": sorted(source_ids), "max_blocks": 2, "sentences_per_block": 2}
         payload["max_chars_per_block"] = max(60, (payload["target_chars"] - 120) // 2)
-        if evidence or feedback:
-            payload.update(evidence=evidence, quality_feedback=feedback)
-        # 잘못된 구조·예산·출처는 한 번만 재생성한다. 원문 응답은 재전송하지 않는다.
-        for attempt in range(2):
-            try:
-                draft = _invoke(ChapterDraft, "report_chapter.md", payload)
-                for block in draft.blocks:
-                    if set(block.source_ids) - source_ids:
-                        raise ReportValidationError("블록에 제공되지 않은 출처 ID가 있습니다.")
-                    if block.source_ids and "[출처:" not in block.text:
-                        block.text += " [출처: " + ", ".join(dict.fromkeys(block.source_ids)) + "]"
-                    factual = (route == "investment" and number <= 3) or (route == "hold" and number == 3)
-                    if evidence and factual:
-                        missing = unsupported_numbers(block.text, evidence, **_numeric_assessment(state, route, number))
-                        if missing:
-                            raise ReportValidationError(
-                                "인용 발췌에 없는 수치: " + ", ".join(sorted(missing)) +
-                                ". 해당 주장을 삭제하거나 실제 지지하는 source_ids를 선택하세요. 원문 숫자·단위를 변환하지 마세요."
-                            )
-                actual_chars = blocks_length(draft.blocks)
-                if actual_chars > budget - reserve:
-                    payload["previous_char_count"] = actual_chars
-                    raise ReportValidationError("본문이 장별 글자 예산을 초과합니다.")
-                _citations("\n".join(block.subtitle + "\n" + block.text for block in draft.blocks), source_ids)
-                break
-            except ReportValidationError as exc:
-                if attempt:
-                    raise
-                logger.warning("보고서 본문 검증 실패, 재생성: chapter=%d", number)
-                payload["retry_reason"] = str(exc)
-                payload["target_chars"] = int(payload["target_chars"] * 0.7)
-                payload["max_chars_per_block"] = max(60, (payload["target_chars"] - 120) // 2)
-        blocks = draft.blocks + ([limitation_block] if number == 4 else [])
+        payload.update(evidence=evidence, quality_feedback=feedback)
+        if previous:
+            old = previous["report"]["chapters"][number - 1]
+            blocks = [Block.model_validate(item) for item in old["blocks"]
+                      if not (number == 4 and item["subtitle"] == "분석의 한계")]
+        else:
+            for attempt in range(2):
+                try:
+                    blocks = _invoke(ChapterDraft, "report_chapter.md", payload).blocks
+                    break
+                except ReportValidationError:
+                    if attempt:
+                        raise
+                    payload["retry_reason"] = "구조화 응답 검증 실패. 올바른 blocks를 반환하세요."
+        accepted = []
+        for index, block in enumerate(blocks, 1):
+            if block.source_ids and "[출처:" not in block.text:
+                block.text += " [출처: " + ", ".join(dict.fromkeys(block.source_ids)) + "]"
+            remaining = max(120, budget - reserve - blocks_length(accepted) - (2 if accepted else 0))
+            local = block_issues(state, route, number, index, block, evidence, source_ids, remaining)
+            judged = [item for item in feedback.get("issues", []) if item["chapter"] == number and item["block"] == index]
+            issues = local + judged
+            if issues:
+                repaired_before = bool(previous and any(item.get("quality_repair") and item["chapter"] == number and item["block"] == index
+                                                       for item in previous.get("repair_log", [])))
+                block = _repair_block(state, route, number, index, block, issues, payload, evidence, source_ids,
+                                      remaining, repair_log, quality=bool(judged), force_fallback=repaired_before)
+            accepted.append(block)
+        chapter_blocks = accepted + ([limitation_block] if number == 4 else [])
         chapters.append(Chapter(number=number, title=template.title, char_budget=budget,
-                                blocks=blocks, tables=tables.get(number, [])))
-    summary_input["chapters"] = [chapter.model_dump() for chapter in chapters]
-    summary_input["source_ids"] = sorted(source_ids)
-    if evidence or feedback:
-        summary_input.update(evidence=evidence, quality_feedback=feedback)
-        summary_input.update(target_chars=300, char_budget=SUMMARY_BUDGET)
+                                blocks=chapter_blocks, tables=tables.get(number, [])))
+    summary_input.update(chapters=[chapter.model_dump() for chapter in chapters], source_ids=sorted(source_ids),
+                         evidence=evidence, quality_feedback=feedback, target_chars=300, char_budget=SUMMARY_BUDGET)
+    if previous:
+        summary_input["previous_summary"] = previous["report"]["summary"]
     model = InvestmentSummary if route == "investment" else HoldSummary
+    summary_issues = []
+    force_summary = bool(previous and any(item["chapter"] == 0 for item in feedback.get("issues", [])) and
+                         any(item["chapter"] == 0 and item.get("quality_repair") for item in previous.get("repair_log", [])))
     for attempt in range(2):
+        draft = None
+        missing = set()
         try:
+            if force_summary:
+                raise ReportValidationError("동일 SUMMARY 품질 재실패")
             draft = _invoke(model, f"report_summary_{route}.md", summary_input)
             summary = _summary_text(draft, summary_input, source_ids)
+            missing = _summary_numbers(draft, summary_input, evidence)
+            if missing:
+                raise ReportValidationError("SUMMARY 인용 발췌에 없는 수치: " + ", ".join(sorted(missing)))
             break
-        except ReportValidationError as exc:
-            if attempt:
-                raise
-            logger.warning("SUMMARY 검증 실패, 재생성: route=%s", route)
-            summary_input["retry_reason"] = str(exc)
-            summary_input["target_chars"] = 220
-    report = ReportDocument(route=route, title=title, run_date=run_date, decision=decision,
-                            total_score=total, summary=summary, chapters=chapters,
-                            references=group_references(refs))
+        except ReportValidationError as error:
+            text = draft.model_dump_json() if draft is not None else "SUMMARY 구조 검증 실패"
+            issue = ReportIssue(chapter=0, block=1, kind="numeric" if missing else "structure", text=text,
+                                source_ids=draft.source_ids if draft is not None else [],
+                                numbers=sorted(missing), reason=str(error)).model_dump()
+            summary_issues.append(issue)
+            summary_input.update(previous_summary=text, retry_reason=str(error), violations=summary_issues, target_chars=220)
+            if attempt or force_summary:
+                draft = _fallback_summary(model, summary_input)
+                summary = _summary_text(draft, summary_input, source_ids)
+                repair_log.append({"chapter": 0, "block": 1, "action": "fallback", "quality_repair": bool(feedback),
+                                   "issues": summary_issues, "after": draft.model_dump()})
+                break
+    if previous and any(item["chapter"] == 0 for item in feedback.get("issues", [])) and not any(item["chapter"] == 0 for item in repair_log):
+        repair_log.append({"chapter": 0, "block": 1, "action": "repaired", "quality_repair": True,
+                           "issues": [item for item in feedback["issues"] if item["chapter"] == 0],
+                           "before": previous["report"]["summary"], "after": summary})
+    report = ReportDocument(route=route, title=title, run_date=run_date, decision=decision, total_score=total,
+                            summary=summary, chapters=chapters, references=group_references(refs))
     logger.info("보고서 본문 생성 완료: route=%s chapters=%d", route, len(chapters))
     return report
 
@@ -331,27 +442,28 @@ def draft(state):
     directory = run_dir(state)
     path = directory / f"draft_v{version}.json"
     report = None
+    repair_log = []
     try:
         validate_assets()
         for reduction in range(3):
-            report = build_report(inputs, reduction=reduction)
+            report = build_report(inputs, reduction=reduction, repair_log=repair_log)
             rendered = render_pdf(report)
             if rendered.page_count <= MAX_PAGES:
                 break
         else:
             rendered = render_pdf(report, compact=True)
             if rendered.page_count > MAX_PAGES:
-                raise ReportTooLongError("분량 축소 후에도 5쪽 초과")
+                raise ReportTooLongError(f"분량 축소 후에도 {MAX_PAGES}쪽 초과")
         write_json(path, {"run_id": state["run_id"], "report_version": version,
                           "page_count": rendered.page_count, "summary_bottom": rendered.summary_bottom,
-                          "report": report.model_dump()})
+                          "report": report.model_dump(), "repair_log": repair_log})
         preview = directory / f"preview_v{version}.pdf"
         preview.write_bytes(rendered.content)
         preview.with_suffix(".md").write_text(to_markdown(report), encoding="utf-8")
         preview_ref = str(preview)
     except (ReportValidationError, ReportServiceError, ReportLayoutError) as error:
         artifact = {"run_id": state["run_id"], "report_version": version,
-                    "error_code": type(error).__name__, "error_reason": str(error)}
+                    "error_code": type(error).__name__, "error_reason": str(error), "repair_log": repair_log}
         if report is not None:
             artifact["report"] = report.model_dump()
             (directory / f"preview_v{version}.md").write_text(to_markdown(report), encoding="utf-8")
@@ -408,7 +520,7 @@ def run(state) -> dict:
         logger.warning("PDF 분량 초과, 글자 크기 축소: pages=%d", rendered.page_count)
         rendered = render_pdf(report, compact=True)
         if rendered.page_count > MAX_PAGES:
-            raise ReportTooLongError("본문 2회 축소·글자 크기 축소 후에도 REFERENCE 포함 5페이지를 초과합니다.")
+            raise ReportTooLongError(f"본문 2회 축소·글자 크기 축소 후에도 REFERENCE 포함 {MAX_PAGES}페이지를 초과합니다.")
     markdown = to_markdown(report).encode("utf-8")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     created = []

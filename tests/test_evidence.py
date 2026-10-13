@@ -51,10 +51,9 @@ def test_numeric_provenance_uses_cited_excerpts_and_thousands_separator():
     assert unsupported_numbers("2023년 $20 million [출처: funding]", evidence) == set()
 
 
-def test_amount_unit_conversion_is_not_literal_provenance():
-    # The report contract preserves the source's amount and unit spelling.
+def test_equivalent_amount_translation_preserves_provenance():
     evidence = [{"source_id": "funding", "text": "$20 million"}]
-    assert unsupported_numbers("유치액은 2000만 달러다 [출처: funding]", evidence) == {"2000"}
+    assert unsupported_numbers("유치액은 2000만 달러다 [출처: funding]", evidence) == set()
 
 
 def test_trl_assessment_is_not_a_value_whitelist():
@@ -74,3 +73,14 @@ def test_trl_assessment_state_mismatch_even_if_number_is_in_excerpt():
     assert unsupported_numbers("TRL 8로 평가한다 [출처: tech]", evidence,
         tech_summary={"trl": 7, "trl_rationale": "현장 실증 근거", "insufficient": []},
         assessment_source_ids={"tech"}) == {"8"}
+
+
+def test_quantity_normalization_rejects_changed_values_currencies_and_units():
+    evidence = [{"source_id": "funding", "text": "$20 million; 1.3 GW; 25%"}]
+    for text in ("2000만 달러", "0.2억 달러", "20,000,000 USD", "1300 MW", "1300 MW다", "25퍼센트"):
+        assert unsupported_numbers(text + " [출처: funding]", evidence) == set()
+    for text in ("200만 달러", "2000만 원", "20 billion USD", "1.3 MW", "25%p"):
+        assert unsupported_numbers(text + " [출처: funding]", evidence)
+    assert unsupported_numbers("2000만 달러 [출처: other]", evidence) == {"2000"}
+    # Matching an ordinary number elsewhere cannot justify a different amount.
+    assert unsupported_numbers("20 billion USD [출처: funding]", evidence) == {"20"}

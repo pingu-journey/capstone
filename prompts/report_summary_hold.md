@@ -7,7 +7,7 @@ common_reasons에는 expected_common_reasons를 순서와 문구 그대로 넣�
 후보마다 보류 사유가 다르면 공통 사유를 새로 만들어내지 않는다.
 어떤 후보의 총점도 전체 대표 점수로 쓰지 않는다. 후보 점수는 본문 비교표에만 둔다.
 후보가 없으면 '평가 가능한 후보를 확보하지 못함'을 표시한다.
-최종 표시 문구(공통 보류 사유 라벨과 줄바꿈 포함)는 550자 이내다.
+최종 표시 문구(공통 보류 사유 라벨과 줄바꿈 포함)는 첫 페이지 반 페이지 이내로 간결하게 작성한다. 550자는 작성 길이 안내다.
 retry_reason이 있으면 해당 검증 실패를 고쳐 새 SUMMARY를 작성한다.
 quality_feedback의 지적을 반영하되 required_opening과 expected_common_reasons는 변경하지 않는다.
 source_ids는 실제 외부 사실을 사용한 경우에만 해당 evidence source_id를 넣고, 평가 이력만 요약하면 []로 둔다.

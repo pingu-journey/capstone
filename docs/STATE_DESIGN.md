@@ -20,7 +20,7 @@
 - research_worker: task별 최소 문맥을 받고 worker_results delta만 쓴다. 점수·판정·캐시를 직접 쓰지 않는다.
 - synthesizer: 계획된 모든 결과를 검증하고 tech_summary·market_analysis·market_cache·research_cache·references의 신규 delta와 evidence_index_ref를 쓴다. 순서는 계획을 따른다.
 - competitor/judge: 기존 분석·점수·판정 계약. judge는 새 EvalRecord 하나만 추가한다.
-- report_draft: report_version을 1 증가시키고 완성된 초안·preview의 파일 참조를 쓴다. 품질 피드백과 실제 발췌를 생성 입력에 전달한다.
+- report_draft: report_version을 1 증가시키고 초안·preview의 파일 참조를 쓴다. 최초 생성 이후에는 이전 artifact의 정상 블록을 유지하고 quality_result.issues의 장·블록 위치만 수정한다. 실패 원문·수치·출처와 원문 발췌를 블록 수정 입력에 전달하며, 수정 후에도 코드 검증에 실패하면 해당 블록을 정보 부족으로 대체한다. SUMMARY는 수정된 본문으로 재생성하고 수치·출처·판정·분량을 다시 검사한다.
 - report_quality: 코드 구조·분량·판정·수치 검사와 LLM의 의미·중립성·편향 검사를 결합한 QualityVerdict를 쓴다. 실패한 코드 검사를 LLM이 덮어쓸 수 없다.
 - report_finalize: 통과 버전과 PDF·본문 hash가 일치할 때만 최종 파일을 저장하고 complete.
 - quality_failed: report_path=None, 검토용 파일·미달 사유를 보존하고 종료.
@@ -34,5 +34,10 @@
 
 ## 보고서 revision
 
-분량 축소는 품질 검사 전에 완료한다. 품질 미달은 다음 version에 피드백을 전달한다. Judge 호출이 두 번 실패하면 recoverable=false로 종료한다. 최종 저장 때 초안을 재생성하거나 PDF를 다시 렌더하지 않는다. source ID의 존재는 의미적 근거의 증명이 아니며 독립 Judge가 발췌와 주장을 대조한다.
-투자 보고서 1장의 TRL 평가 문구는 State trl과 일치하고 판단근거·기술 출처 발췌가 있을 때 해당 TRL 숫자 위치만 원문 숫자 검사에서 제외한다. 같은 값의 시장 수치나 State와 다른 TRL 평가는 제외하지 않는다. Judge에는 tech_summary를 전달해 평가값·판단근거·인용 원문의 의미를 대조한다. 천 단위 쉼표 정규화는 유지하고 금액·단위 변환은 원문 보존 규칙에 따라 허용하지 않는다.
+분량 축소는 품질 검사 전에 완료한다. 품질 미달은 다음 version에 고정 장·블록 위치를 전달하며, 코드가 해당 위치의 실제 원문·출처·수치를 채운다. 동일 블록이 다음 품질 평가에서도 실패하면 추가 LLM 수정 대신 정보 부족으로 대체한다. 판정 전용 QualityAssessment와 미달 항목 위치 전용 ReportIssueTargets를 분리한다. 통과하면 위치 모델을 호출하지 않는다. 각 단계의 호출·응답 검증은 최대 두 번이며, 검증 실패 또는 안전한 수정 위치가 없으면 recoverable=false로 종료한다. 수정 전·후와 실패 이력은 draft artifact의 repair_log에 보존한다. 최종 저장 때 초안을 재생성하거나 PDF를 다시 렌더하지 않는다. source ID의 존재는 의미적 근거의 증명이 아니며 독립 Judge가 발췌와 주장을 대조한다.
+투자 보고서 1장의 TRL 평가 문구는 State trl과 일치하고 판단근거·기술 출처 발췌가 있을 때 해당 TRL 숫자 위치만 원문 숫자 검사에서 제외한다. 같은 값의 시장 수치나 State와 다른 TRL 평가는 제외하지 않는다. Judge에는 tech_summary를 전달해 평가값·판단근거·인용 원문의 의미를 대조한다. 천 단위 쉼표와 정확히 동치인 규모·단위 표현을 Decimal로 정규화한다($20 million=2000만 달러, 1.3 GW=1300 MW). 통화·차원이 달라지면 거부하며 환율 환산·반올림은 수행하지 않는다. 대상·기간·주장 의미는 독립 Judge가 검사한다.
+
+
+## 과제 분량 기준
+
+최신 Multi-Agent Orchestration 지침의 최대 10쪽을 적용한다. PDF 렌더러·생성·평가·확정·E2E는 공통 MAX_PAGES=10을 사용하며 REFERENCE를 포함한 실제 페이지 수를 검사한다. SUMMARY는 연결된 기존 보고서 지침의 반 페이지 제한을 유지한다. 장별 char_budget과 SUMMARY 550자는 생성 길이 안내이고 품질 탈락 기준이 아니다. 글자 수 초과만으로 근거 있는 본문을 정보 부족 문구로 대체하지 않는다.

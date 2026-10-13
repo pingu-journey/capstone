@@ -3,6 +3,7 @@
 import logging
 import re
 from datetime import date, datetime
+from decimal import Decimal
 from email.utils import parsedate_to_datetime
 from hashlib import sha1
 from typing import Iterable
@@ -17,10 +18,50 @@ from schemas import Reference
 logger = logging.getLogger(__name__)
 
 
+_SCALES = {"thousand": 1000, "million": 10**6, "billion": 10**9,
+           "천": 1000, "만": 10**4, "억": 10**8, "조": 10**12}
+_CURRENCIES = {"$": "USD", "USD": "USD", "달러": "USD", "dollars": "USD",
+               "₩": "KRW", "KRW": "KRW", "원": "KRW",
+               "€": "EUR", "EUR": "EUR", "유로": "EUR"}
+_UNITS = {"GW": ("power", 10**9), "MW": ("power", 10**6), "kW": ("power", 1000),
+          "GWh": ("energy", 10**9), "MWh": ("energy", 10**6), "kWh": ("energy", 1000),
+          "%": ("percent", 1), "퍼센트": ("percent", 1), "%p": ("percentage_point", 1)}
+_NUMBER = re.compile(
+    r"(?P<prefix>USD\b|KRW\b|EUR\b|[$₩€])?\s*"
+    r"(?P<number>\d+(?:\.\d+)?)\s*"
+    r"(?P<scale>thousand\b|million\b|billion\b|천|만|억|조)?\s*"
+    r"(?P<unit>GWh(?![A-Za-z])|MWh(?![A-Za-z])|kWh(?![A-Za-z])|GW(?![A-Za-z])|MW(?![A-Za-z])|kW(?![A-Za-z])|USD\b|KRW\b|EUR\b|dollars\b|달러|원|유로|%p|%|퍼센트)?"
+)
+
+
+def _numeric_tokens(text):
+    """Normalize exact quantities, retaining currency/dimension and original feedback value.
+
+    This is a representation check only; entity, period and claim meaning are
+    independently checked by the Judge. No exchange rates or rounding are used.
+    """
+    text = re.sub(r"(?<=\d),(?=\d)", "", text)
+    result = []
+    for match in _NUMBER.finditer(text):
+        raw = match["number"]
+        value = Decimal(raw) * _SCALES.get(match["scale"], 1)
+        prefix, unit = match["prefix"], match["unit"]
+        if unit in _UNITS:
+            dimension, factor = _UNITS[unit]
+            value *= factor
+        else:
+            dimension = _CURRENCIES.get(unit or prefix, "number")
+        # Conflicting currencies/units must never normalize to a valid quantity.
+        if prefix and (unit in _UNITS or (unit and _CURRENCIES[unit] != _CURRENCIES[prefix])):
+            dimension = "invalid:" + match.group().strip()
+        result.append(((value, dimension), raw))
+    return result
+
+
 def unsupported_numbers(text: str, evidence: list[dict], *, tech_summary=None, assessment_source_ids=()) -> set[str]:
     """Check external numbers; exempt only cited, State-matching TRL assessment spans.
 
-    Amount/unit conversions remain disallowed. The Judge still checks whether the
+    Exact equivalent scale/unit translations are allowed. The Judge still checks whether the
     excerpts support the assessment rationale and the claim's scope and units.
     """
     cited = {source.strip() for group in re.findall(r"\[출처:\s*([^\]]+)\]", text)
@@ -44,10 +85,9 @@ def unsupported_numbers(text: str, evidence: list[dict], *, tech_summary=None, a
             return match.group()
         claim = re.sub(r"\bTRL\s*(?P<number>\d+(?:\.\d+)?)\s*(?:로|으로)?\s*(?:평가|판단|추정)",
                        assessment, claim, flags=re.IGNORECASE)
-    def numbers(value):
-        return set(re.findall(r"\d+(?:\.\d+)?", re.sub(r"(?<=\d),(?=\d)", "", value)))
     excerpts = " ".join(item["text"] for item in evidence if item["source_id"] in cited)
-    return (numbers(claim) - numbers(excerpts)) | mismatched
+    supported = {token for token, _ in _numeric_tokens(excerpts)}
+    return {raw for token, raw in _numeric_tokens(claim) if token not in supported} | mismatched
 
 DOCS_PATH = ROOT / "config" / "docs.yaml"
 REFERENCE_GROUPS = {

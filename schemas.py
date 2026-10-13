@@ -142,7 +142,17 @@ class QualityCheck(OrchestrationModel):
     feedback: list[str]
 
 
-class QualityVerdict(OrchestrationModel):
+class ReportIssue(OrchestrationModel):
+    chapter: int = Field(strict=True, ge=0, le=4, description="0=SUMMARY, 1~4=본문 장 번호")
+    block: int = Field(strict=True, ge=1, description="장 안의 1-based 블록 위치, SUMMARY는 1")
+    kind: Literal["numeric", "citation", "length", "groundedness", "neutrality", "bias", "structure"]
+    text: str = Field(default="", description="코드가 지정된 위치의 실제 블록 원문으로 채운다.")
+    source_ids: list[str] = Field(default_factory=list)
+    numbers: list[str] = Field(default_factory=list)
+    reason: str = Field(min_length=1)
+
+
+class QualityAssessment(OrchestrationModel):
     report_version: int = Field(strict=True, ge=1, le=3)
     groundedness: QualityCheck
     neutrality: QualityCheck
@@ -151,8 +161,16 @@ class QualityVerdict(OrchestrationModel):
     structure_reasons: list[str]
     recoverable: bool = Field(strict=True)
 
+
+class QualityVerdict(QualityAssessment):
+    issues: list[ReportIssue] = Field(default_factory=list)
+
     @property
     def passed(self) -> bool:
         return self.structure_passed and all(
             check.passed for check in (self.groundedness, self.neutrality, self.bias)
         )
+
+
+class ReportIssueTargets(OrchestrationModel):
+    issues: list[ReportIssue] = Field(min_length=1)

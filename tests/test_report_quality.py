@@ -21,11 +21,13 @@ from tools.artifacts import read_json, run_dir, write_json
 from tools.references import make_web_ref
 
 
-def verdict(version=1, passed=True, feedback="수치를 원문과 일치시키세요.", recoverable=True):
+def verdict(version=1, passed=True, feedback="수치를 원문과 일치시키세요.", recoverable=True, text="자료를 검토했다."):
     check = QualityCheck(passed=passed, reason="통과" if passed else feedback, feedback=[] if passed else [feedback])
     good = QualityCheck(passed=True, reason="통과", feedback=[])
     return QualityVerdict(report_version=version, groundedness=check, neutrality=good, bias=good,
-                          structure_passed=True, structure_reasons=[], recoverable=recoverable)
+                          structure_passed=True, structure_reasons=[], recoverable=recoverable,
+                          issues=[] if passed else [{"chapter": 1, "block": 1, "kind": "groundedness", "text": text,
+                                                     "reason": feedback}])
 
 
 @pytest.fixture
@@ -97,13 +99,13 @@ def test_fail_feedback_improves_and_finalizes_same_pdf(state, generator, monkeyp
     assert generator[5]["quality_feedback"]["groundedness"]["feedback"] == ["수치를 원문과 일치시키세요."]
     path = Path(final["report_path"])
     assert path.read_bytes() == Path(final["report_preview_ref"]).read_bytes()
-    assert len(PdfReader(path).pages) <= 5
+    assert len(PdfReader(path).pages) <= quality.MAX_PAGES
     assert not (run_dir(state) / "report_v1.pdf").exists()
     assert (run_dir(state) / "quality_v1.json").is_file()
 
 
 def test_quality_failure_stops_after_three_revisions(state, generator, monkeypatch):
-    calls = install_judge(monkeypatch, [lambda p: verdict(p["report_version"], False)])
+    calls = install_judge(monkeypatch, [lambda p: verdict(p["report_version"], False, text=p["report"]["chapters"][0]["blocks"][0]["text"])])
     final = graph().invoke(state)
     assert len(calls) == 3 and final["report_version"] == 3
     assert final["execution_status"] == "quality_failed" and final["report_path"] is None
@@ -257,8 +259,10 @@ def test_trl_assessment_numeric_provenance_in_generation_and_quality(state, gene
         state.update(writer.draft(state))
         assert "report" in read_json(state["report_draft_ref"])
     else:
-        with pytest.raises(writer.ReportValidationError, match="수치"):
-            writer.build_report(state)
+        repair_log = []
+        safe = writer.build_report(state, repair_log=repair_log)
+        assert "공개 정보 부족" in safe.chapters[0].blocks[0].text
+        assert any(item["issues"][0]["kind"] == "numeric" for item in repair_log)
         monkeypatch.setattr(writer, "_invoke", original)
         state.update(writer.draft(state))
         artifact = read_json(state["report_draft_ref"])
@@ -279,3 +283,46 @@ def test_trl_assessment_still_requires_citation(state, generator, monkeypatch):
     write_json(Path(state["report_draft_ref"]), artifact)
     install_judge(monkeypatch, [verdict()])
     assert not QualityVerdict.model_validate(quality.run(state)["quality_result"]).groundedness.passed
+
+
+@pytest.mark.parametrize('amount, accepted', [('2000만 달러', True), ('2000만 원', False)])
+def test_amount_equivalence_quality_gate_cannot_be_overridden(state, generator, monkeypatch, amount, accepted):
+    from tools.evidence import index_evidence
+    from report.templates import ReportDocument
+    from report.pdf_renderer import render_pdf
+    source = state['references'][0]['id']
+    write_json(run_dir(state) / 'evidence/test.json', [{'source_id': source, 'startup': 'Amperon',
+        'text': 'Series B funding: $20 million.', 'reference': state['references'][0]}])
+    state['evidence_index_ref'] = index_evidence(state)
+    state.update(writer.draft(state))
+    artifact = read_json(state['report_draft_ref'])
+    report = ReportDocument.model_validate(artifact['report'])
+    report.chapters[0].blocks[0].text = f'유치액은 {amount}다. 단일 출처 의존 한계가 있다. [출처: {source}]'
+    rendered = render_pdf(report)
+    Path(state['report_preview_ref']).write_bytes(rendered.content)
+    artifact.update(report=report.model_dump(), page_count=rendered.page_count, summary_bottom=rendered.summary_bottom)
+    write_json(Path(state['report_draft_ref']), artifact)
+    install_judge(monkeypatch, [verdict()])  # Even a permissive Judge cannot approve changed currency.
+    result = QualityVerdict.model_validate(quality.run(state)['quality_result'])
+    assert result.structure_passed
+    assert result.groundedness.passed is accepted
+
+
+@pytest.mark.parametrize('pages, accepted', [(10, True), (11, False)])
+def test_assignment_page_limit_and_soft_character_targets(state, generator, monkeypatch, pages, accepted):
+    from pypdf import PdfReader, PdfWriter
+    state.update(writer.draft(state))
+    artifact = read_json(state['report_draft_ref'])
+    artifact['report']['chapters'][0]['char_budget'] = 1  # A writing target cannot reject verified content.
+    pdf = PdfWriter()
+    for page in PdfReader(state['report_preview_ref']).pages:
+        pdf.add_page(page)
+    while len(pdf.pages) < pages:
+        pdf.add_blank_page(width=595, height=842)
+    pdf.write(state['report_preview_ref'])
+    artifact['page_count'] = pages
+    write_json(Path(state['report_draft_ref']), artifact)
+    install_judge(monkeypatch, [verdict()])
+    result = QualityVerdict.model_validate(quality.run(state)['quality_result'])
+    assert result.structure_passed is accepted
+    assert result.passed is accepted

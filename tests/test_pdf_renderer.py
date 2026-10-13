@@ -30,7 +30,7 @@ def test_real_pdf_content_and_layout(route, count, stress):
     result = renderer.render_pdf(report)
     reader = PdfReader(BytesIO(result.content))
     text = "\n".join(page.extract_text() for page in reader.pages)
-    assert len(reader.pages) == result.page_count <= 5
+    assert len(reader.pages) == result.page_count <= renderer.MAX_PAGES
     assert result.summary_bottom <= 148.5
     assert text.index("SUMMARY") < text.index("1. ") < text.index("REFERENCE")
     assert normalized(report.summary) in normalized(text)
@@ -92,10 +92,10 @@ def test_layout_errors(issue):
         renderer.render_pdf(report)
 
 
-# 과도한 출처는 삭제하지 않고 5페이지 초과로 단독 저장을 거부한다.
+# 과도한 출처는 삭제하지 않고 10페이지 초과로 단독 저장을 거부한다.
 def test_rejects_oversized_document_without_file(tmp_path):
     report = sample_report()
-    report.chapters[0].blocks = [Block(subtitle="긴 본문", text="보존할 근거 " * 4000)]
+    report.chapters[0].blocks = [Block(subtitle="긴 본문", text="보존할 근거 " * 10000)]
     path = tmp_path / "too-long.pdf"
     with pytest.raises(renderer.ReportTooLongError):
         renderer.write_pdf(report, path)
@@ -116,15 +116,15 @@ def test_report_node_in_graph(monkeypatch, tmp_path):
     result = graph.compile().invoke(initial)
     path = Path(result["report_path"])
     assert re.fullmatch(r"report_\d{8}_\d{4}\.pdf", path.name)
-    assert len(PdfReader(path).pages) <= 5
+    assert len(PdfReader(path).pages) <= renderer.MAX_PAGES
     assert path.with_suffix(".md").read_text(encoding="utf-8") == to_markdown(report)
     assert result["log"].count("[judge] 기존 기록") == 1
     assert len(result["log"]) == 2 and initial == before
 
 
 # 본문 2회 축소 후 글자 크기를 줄이며 마지막 데이터로 PDF와 Markdown을 함께 저장한다.
-@pytest.mark.parametrize("pages, reductions, compact", [([5], [0], [False]), ([6, 5], [0, 1], [False, False]),
-                                                        ([6, 6, 6, 5], [0, 1, 2], [False, False, False, True])])
+@pytest.mark.parametrize("pages, reductions, compact", [([10], [0], [False]), ([11, 10], [0, 1], [False, False]),
+                                                        ([11, 11, 11, 10], [0, 1, 2], [False, False, False, True])])
 def test_page_retries(monkeypatch, tmp_path, pages, reductions, compact):
     reports = []
 
@@ -150,7 +150,7 @@ def test_page_retries(monkeypatch, tmp_path, pages, reductions, compact):
 def test_page_failure_writes_nothing(monkeypatch, tmp_path):
     monkeypatch.setattr(writer, "OUTPUT_DIR", tmp_path)
     monkeypatch.setattr(writer, "build_report", Mock(return_value=sample_report()))
-    monkeypatch.setattr(writer, "render_pdf", Mock(return_value=renderer.RenderedPDF(b"overflow", 6, 90)))
+    monkeypatch.setattr(writer, "render_pdf", Mock(return_value=renderer.RenderedPDF(b"overflow", 11, 90)))
     with pytest.raises(renderer.ReportTooLongError):
         writer.run({})
     assert not list(tmp_path.iterdir())
@@ -198,5 +198,20 @@ def test_full_character_budgets():
         assert blocks_length(chapter.blocks) == chapter.char_budget
     report.summary += (" 본문과 점수의 일치 여부를 확인하는 검증 문장이다." * 30)[:550 - len(report.summary)]
     result = renderer.render_pdf(report)
-    assert len(report.summary) == 550 and result.page_count <= 5
+    assert len(report.summary) == 550 and result.page_count <= renderer.MAX_PAGES
     assert result.summary_bottom < 148.5
+
+
+def test_assignment_allows_document_between_six_and_ten_pages(tmp_path):
+    report = sample_report()
+    report.chapters[0].blocks = [Block(subtitle="긴 본문", text="보존할 근거 " * 4000)]
+    path = tmp_path / "within-assignment-limit.pdf"
+    renderer.write_pdf(report, path)
+    assert 5 < len(PdfReader(path).pages) <= 10
+
+
+def test_summary_uses_physical_half_page_not_arbitrary_character_count():
+    report = sample_report()
+    report.summary = "." * 551
+    rendered = renderer.render_pdf(report)
+    assert rendered.summary_bottom <= 148.5

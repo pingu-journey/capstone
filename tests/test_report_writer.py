@@ -211,7 +211,7 @@ def test_bad_history(state, llm, issue):
     assert not llm[1]
 
 
-# SUMMARY 일관성 실패는 한 번 재생성하고 같은 오류가 반복되면 실패한다.
+# SUMMARY 일관성 실패는 한 번 재생성하고 재실패하면 확정 State로 대체한다.
 @pytest.mark.parametrize("repair", [True, False])
 @pytest.mark.parametrize("route", ["investment", "hold"])
 def test_summary_retry(state, llm, monkeypatch, repair, route):
@@ -229,16 +229,14 @@ def test_summary_retry(state, llm, monkeypatch, repair, route):
         return result
 
     monkeypatch.setattr(writer, "_invoke", invoke)
-    if repair:
-        writer.build_report(state)
-    else:
-        with pytest.raises(writer.ReportValidationError):
-            writer.build_report(state)
+    report = writer.build_report(state)
+    assert "잘못된 결론" not in report.summary
+    assert report.summary.startswith(writer._prepare(state)[6]["required_opening"])
     assert len(attempts) == 2 and "retry_reason" in attempts[1]
 
 
 # 글자 수·빈 투자 포인트·출처·후보 수·공통 사유 오류를 SUMMARY 검사에서 거부한다.
-@pytest.mark.parametrize("issue", ["length", "blank", "source", "count", "reason", "contradiction", "duplicate"])
+@pytest.mark.parametrize("issue", ["blank", "source", "count", "reason", "contradiction", "duplicate"])
 def test_summary_content_validation(state, llm, monkeypatch, issue):
     if issue in ("count", "reason"):
         state = hold_state(state, 3)
@@ -247,9 +245,7 @@ def test_summary_content_validation(state, llm, monkeypatch, issue):
     def invoke(model, prompt, payload):
         result = original(model, prompt, payload)
         if model is InvestmentSummary:
-            if issue == "length":
-                result.risks[0] = "가" * 550
-            elif issue == "blank":
+            if issue == "blank":
                 result.investment_points[0] = " "
             elif issue == "source":
                 result.risks[0] = "위험 [출처: invented]"
@@ -265,24 +261,36 @@ def test_summary_content_validation(state, llm, monkeypatch, issue):
         return result
 
     monkeypatch.setattr(writer, "_invoke", invoke)
-    with pytest.raises(writer.ReportValidationError):
-        writer.build_report(state)
+    repairs = []
+    report = writer.build_report(state, repair_log=repairs)
+    assert report.summary.startswith(writer._prepare(state)[6]["required_opening"])
+    assert len(report.summary) <= 550
+    assert "invented" not in report.summary and "임의로 만든 사유" not in report.summary
+    assert any(item["chapter"] == 0 and item["action"] == "fallback" for item in repairs)
 
 
-# 장별 초과 분량과 알 수 없는 출처는 한 번만 재시도하며 SUMMARY까지 진행하지 않는다.
+# 장별 초과 분량·잘못된 출처의 블록 수정이 실패하면 정보 부족으로 대체한다.
 @pytest.mark.parametrize("issue", ["length", "source"])
 def test_chapter_validation(state, llm, monkeypatch, issue):
     original = writer._invoke
 
     def invoke(model, prompt, payload):
         draft = original(model, prompt, payload)
-        draft.blocks[0].text = "가" * 901 if issue == "length" else "근거 [출처: unknown]"
+        if model is ChapterDraft:
+            draft.blocks[0].text = "가" * 901 if issue == "length" else "근거 [출처: unknown]"
         return draft
 
     monkeypatch.setattr(writer, "_invoke", invoke)
-    with pytest.raises(writer.ReportValidationError):
-        writer.build_report(state)
-    assert len(llm[1]) == 2
+    repairs = []
+    report = writer.build_report(state, repair_log=repairs)
+    if issue == "length":
+        assert not repairs
+        assert report.chapters[0].blocks[0].text == "가" * 901
+        return
+    assert [item["chapter"] for item in repairs] == [1, 2, 3, 4]
+    assert all(item["action"] == "fallback" for item in repairs)
+    assert all("공개 정보 부족" in report.chapters[item["chapter"] - 1].blocks[0].text for item in repairs)
+    assert "unknown" not in to_markdown(report)
 
 
 # PDF 재생성 단계에서 사용할 20% 축소 예산을 각 장에 적용한다.
@@ -386,13 +394,13 @@ def test_run_generates_real_artifacts(state, llm, monkeypatch, tmp_path):
     assert state == before and len(result["log"]) == 1
     reader = PdfReader(pdf)
     text = "\n".join(page.extract_text() for page in reader.pages)
-    assert 1 <= len(reader.pages) <= 5
+    assert 1 <= len(reader.pages) <= writer.MAX_PAGES
     assert "SUMMARY" in text and "REFERENCE" in text and "80.0점" in text
     assert "80\\.0점" in pdf.with_suffix(".md").read_text(encoding="utf-8")
 
 
 # 실제 글자 수 초과 시 재생성 입력에 초과 길이와 더 작은 작성 목표를 전달한다.
-def test_chapter_retry_includes_measured_length(state, llm, monkeypatch):
+def test_chapter_length_target_is_not_a_failure(state, llm, monkeypatch):
     original = writer._invoke
     attempts = []
 
@@ -405,6 +413,4 @@ def test_chapter_retry_includes_measured_length(state, llm, monkeypatch):
 
     monkeypatch.setattr(writer, "_invoke", invoke)
     writer.build_report(state)
-    assert len(attempts) == 2
-    assert attempts[1]["previous_char_count"] == 904
-    assert attempts[1]["target_chars"] < attempts[0]["target_chars"] < attempts[0]["char_budget"]
+    assert len(attempts) == 1
